@@ -98,9 +98,14 @@ export function formatCliResult(result) {
 
   if (result.text) return `${result.text}\n`;
   if (result.ok) {
+    const warningText = (result.warnings ?? []).map((item) => {
+      const location = item.path ? ` [${item.path}]` : '';
+      return `WARNING ${item.code}${location}: ${item.message}`;
+    }).join('\n');
+    const prefix = warningText === '' ? '' : `${warningText}\n`;
     if (result.command === 'validate') {
       const { filesChecked, scenariosChecked } = result.summary;
-      return `OK: ${filesChecked} files and ${scenariosChecked} scenarios validated.\n`;
+      return `${prefix}OK: ${filesChecked} files and ${scenariosChecked} scenarios validated.\n`;
     }
     if (result.command === 'validate-run') {
       return `OK: run ${result.summary.runId} is valid.\n`;

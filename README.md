@@ -42,6 +42,7 @@ Add `--json` to any command for a single JSON result on stdout or stderr. `--hel
     {
       "name": "review-route",
       "maxWords": 3500,
+      "warningPercent": 85,
       "files": ["README.md", "skills/review/SKILL.md"]
     }
   ],
@@ -55,7 +56,7 @@ Add `--json` to any command for a single JSON result on stdout or stderr. `--hel
 }
 ```
 
-All sections except `schemaVersion` and `projectRoot` are optional. Word counts are deterministic and whitespace-delimited. A file passes when its count is equal to its limit. Route counts are the sum of their listed files.
+All sections except `schemaVersion` and `projectRoot` are optional. Word counts are deterministic and whitespace-delimited. A file passes when its count is equal to its limit. Route counts are the sum of their listed files. An optional `warningPercent` from 1 to 100 emits a non-failing route warning at or above that utilization.
 
 Paths in configuration are portable forward-slash paths relative to the configured project root. Absolute paths, traversal, and symlinks that resolve outside that root are rejected. The CLI performs no shell execution or network access. Only `init` mutates files.
 

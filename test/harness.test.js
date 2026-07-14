@@ -135,6 +135,33 @@ test('reports a named route budget exceeded by one word', async () => {
   });
 });
 
+test('emits a non-failing route warning at the configured utilization', async () => {
+  const config = baseConfig({
+    skillBudgets: undefined,
+    routeBudgets: [{ name: 'main', maxWords: 7, warningPercent: 85, files: ['skills/example/SKILL.md', 'route.md'] }],
+  });
+  delete config.skillBudgets;
+  const root = await projectFixture(config);
+  const result = await validateProject(path.join(root, 'agent-harness.config.json'));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.exitCode, EXIT_CODES.OK);
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(result.warnings.map((item) => item.code), ['ROUTE_BUDGET_WARNING']);
+  assert.match(formatCliResult(result), /^WARNING ROUTE_BUDGET_WARNING:/);
+});
+
+test('rejects an out-of-range route warning percentage', async () => {
+  const config = baseConfig({
+    routeBudgets: [{ name: 'main', maxWords: 7, warningPercent: 101, files: ['route.md'] }],
+  });
+  const root = await projectFixture(config);
+  const result = await validateProject(path.join(root, 'agent-harness.config.json'));
+
+  assert.equal(result.exitCode, EXIT_CODES.INVALID_INPUT);
+  assert.ok(result.diagnostics.some((item) => item.path === '$.routeBudgets[0].warningPercent'));
+});
+
 test('rejects traversal paths before reading project files', async () => {
   const config = baseConfig({ requiredFiles: ['../outside.md'], requiredPhrases: [], skillBudgets: undefined, routeBudgets: [], scenarios: [] });
   delete config.skillBudgets;

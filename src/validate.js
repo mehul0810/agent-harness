@@ -60,6 +60,7 @@ export async function validateProject(configPath) {
     const projectRoot = await resolveProjectRoot(path.dirname(resolvedConfig), config.projectRoot);
     const files = new Map();
     const diagnostics = [];
+    const warnings = [];
 
     for (const configuredPath of projectReferences(config)) {
       const file = await resolveProjectFile(projectRoot, configuredPath);
@@ -117,6 +118,14 @@ export async function validateProject(configPath) {
           actualWords,
           maxWords: route.maxWords,
         }));
+      } else if (route.warningPercent !== undefined && actualWords * 100 >= route.maxWords * route.warningPercent) {
+        warnings.push(diagnostic('ROUTE_BUDGET_WARNING', `Route ${JSON.stringify(route.name)} uses ${actualWords} words; warning threshold is ${route.warningPercent}% of ${route.maxWords}.`, {
+          severity: 'warning',
+          route: route.name,
+          actualWords,
+          maxWords: route.maxWords,
+          warningPercent: route.warningPercent,
+        }));
       }
     }
 
@@ -138,6 +147,7 @@ export async function validateProject(configPath) {
       command,
       exitCode: diagnostics.length === 0 ? EXIT_CODES.OK : EXIT_CODES.VALIDATION_FAILED,
       diagnostics,
+      warnings,
       summary: {
         projectRoot,
         filesChecked: files.size,

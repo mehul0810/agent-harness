@@ -130,12 +130,18 @@ export function validateConfigObject(input) {
         add(diagnostics, routePath, 'Expected an object.');
         return;
       }
-      checkKeys(route, new Set(['name', 'maxWords', 'files']), routePath, diagnostics);
+      checkKeys(route, new Set(['name', 'maxWords', 'warningPercent', 'files']), routePath, diagnostics);
       if (checkString(route.name, `${routePath}.name`, diagnostics)) {
         if (routeNames.has(route.name)) add(diagnostics, `${routePath}.name`, 'Route name must be unique.');
         routeNames.add(route.name);
       }
       checkPositiveInteger(route.maxWords, `${routePath}.maxWords`, diagnostics);
+      if (route.warningPercent !== undefined) {
+        checkPositiveInteger(route.warningPercent, `${routePath}.warningPercent`, diagnostics);
+        if (Number.isInteger(route.warningPercent) && route.warningPercent > 100) {
+          add(diagnostics, `${routePath}.warningPercent`, 'Expected an integer from 1 to 100.');
+        }
+      }
       checkStringArray(route.files, `${routePath}.files`, diagnostics, { allowEmpty: false });
     });
   }
