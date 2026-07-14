@@ -1,0 +1,15 @@
+{
+  "$schema": "../../schemas/config.schema.json",
+  "schemaVersion": 1,
+  "projectRoot": ".",
+  "requiredFiles": ["README.md", "docs/overview.md"],
+  "requiredPhrases": [
+    { "file": "docs/overview.md", "phrases": ["## Scope", "## Verification"] }
+  ],
+  "routeBudgets": [
+    { "name": "docs-route", "maxWords": 120, "files": ["README.md", "docs/overview.md"] }
+  ],
+  "scenarios": [
+    { "name": "documented-flow", "file": "evals/scenarios.md", "requiredPhrases": ["Expected: pass"] }
+  ]
+}

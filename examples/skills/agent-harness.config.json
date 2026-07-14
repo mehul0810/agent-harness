@@ -1,0 +1,20 @@
+{
+  "$schema": "../../schemas/config.schema.json",
+  "schemaVersion": 1,
+  "projectRoot": ".",
+  "requiredFiles": ["README.md", "skills/example/SKILL.md"],
+  "requiredPhrases": [
+    { "file": "skills/example/SKILL.md", "phrases": ["## Purpose", "## Boundaries"] }
+  ],
+  "skillBudgets": {
+    "defaultMaxWords": 80,
+    "files": ["skills/example/SKILL.md"],
+    "overrides": { "skills/example/SKILL.md": 100 }
+  },
+  "routeBudgets": [
+    { "name": "skill-route", "maxWords": 140, "files": ["README.md", "skills/example/SKILL.md"] }
+  ],
+  "scenarios": [
+    { "name": "happy-path", "file": "evals/scenarios.md", "requiredPhrases": ["Expected: pass"] }
+  ]
+}

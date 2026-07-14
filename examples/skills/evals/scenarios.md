@@ -1,0 +1,3 @@
+# Happy path
+
+Expected: pass

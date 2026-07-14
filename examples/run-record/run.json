@@ -1,0 +1,18 @@
+{
+  "$schema": "../../schemas/run-record.schema.json",
+  "schemaVersion": 1,
+  "runId": "run-2026-07-14-001",
+  "scenario": "happy-path",
+  "result": "succeeded",
+  "startedAt": "2026-07-14T05:00:00.000Z",
+  "durationMs": 842,
+  "checks": [
+    { "name": "required-files", "result": "pass" },
+    { "name": "route-budget", "result": "pass" }
+  ],
+  "metrics": {
+    "inputTokens": 64,
+    "checksPassed": 2
+  },
+  "tags": ["example"]
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "../../schemas/config.schema.json",
+  "schemaVersion": 1,
+  "projectRoot": ".",
+  "requiredFiles": ["README.md", "LOOP.md"],
+  "requiredPhrases": [
+    { "file": "LOOP.md", "phrases": ["## Stop condition"] }
+  ],
+  "routeBudgets": [
+    { "name": "loop-route", "maxWords": 100, "files": ["LOOP.md"] }
+  ],
+  "scenarios": [
+    { "name": "stop-on-pass", "file": "evals/scenarios.md", "requiredPhrases": ["Expected: pass", "Stop: true"] }
+  ]
+}

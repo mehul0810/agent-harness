@@ -1,0 +1,45 @@
+{
+  "name": "@mehul0810/agent-harness",
+  "version": "0.1.0",
+  "description": "Dependency-free validation and evaluation contracts for agent projects.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "agent-harness": "./bin/agent-harness.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./schemas/config": "./schemas/config.schema.json",
+    "./schemas/run-record": "./schemas/run-record.schema.json"
+  },
+  "files": [
+    "bin",
+    "src",
+    "schemas",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "check": "node --test && node scripts/check-examples.js"
+  },
+  "keywords": [
+    "agents",
+    "evaluation",
+    "validation",
+    "cli"
+  ],
+  "license": "MIT",
+  "author": "Mehul Gohil",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mehul0810/agent-harness.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}
