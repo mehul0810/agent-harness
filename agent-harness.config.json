@@ -1,0 +1,70 @@
+{
+  "$schema": "./schemas/config.schema.json",
+  "schemaVersion": 1,
+  "projectRoot": ".",
+  "requiredFiles": [
+    "AGENTS.md",
+    "README.md",
+    "TESTING.md",
+    "contracts/compatibility.json",
+    "docs/run-record-metrics.md",
+    "evals/harness-contracts.md",
+    "schemas/config.schema.json",
+    "schemas/run-record.schema.json"
+  ],
+  "requiredPhrases": [
+    {
+      "file": "AGENTS.md",
+      "phrases": [
+        "directly to `main`",
+        "no shell execution, network access"
+      ]
+    },
+    {
+      "file": "docs/run-record-metrics.md",
+      "phrases": [
+        "omit unavailable values rather than estimating",
+        "input_tokens",
+        "output_tokens"
+      ]
+    }
+  ],
+  "routeBudgets": [
+    {
+      "name": "maintainer-route",
+      "maxWords": 1500,
+      "warningPercent": 85,
+      "files": [
+        "AGENTS.md",
+        "README.md",
+        "TESTING.md"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "runtime-safety",
+      "file": "evals/harness-contracts.md",
+      "requiredPhrases": [
+        "Safety boundary",
+        "Expected: pass"
+      ]
+    },
+    {
+      "name": "token-telemetry-privacy",
+      "file": "evals/harness-contracts.md",
+      "requiredPhrases": [
+        "Telemetry privacy",
+        "reported token counts"
+      ]
+    },
+    {
+      "name": "direct-main-local-first",
+      "file": "evals/harness-contracts.md",
+      "requiredPhrases": [
+        "Publication route",
+        "Local-first gate"
+      ]
+    }
+  ]
+}

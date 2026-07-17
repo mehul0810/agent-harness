@@ -4,7 +4,7 @@
 
 ## Requirements
 
-- Node.js 20 or newer
+- Node.js 24 from `.nvmrc`
 - JSON configuration
 
 ## CLI
@@ -71,6 +71,7 @@ agent-harness validate-run --file examples/run-record/run.json
 ```
 
 See [run-record.schema.json](./schemas/run-record.schema.json) and the [example run](./examples/run-record/run.json).
+Use the [portable metric names](./docs/run-record-metrics.md) when the host reports token or tool telemetry. Never estimate unavailable values.
 
 ## Library
 
@@ -105,4 +106,4 @@ npm test
 npm run check
 ```
 
-`npm run check` runs the test suite and validates every checked-in example through the public API.
+`npm run check` runs the test suite, validates every checked-in example through the public API, checks the compatibility manifest, and validates this repository with its own CLI. Local validation is the normal gate; scoped validated repository changes publish directly to `main`, while a PR is an explicit review exception.

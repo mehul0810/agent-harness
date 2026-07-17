@@ -4,7 +4,7 @@
   "description": "Dependency-free validation and evaluation contracts for agent projects.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24 <25"
   },
   "bin": {
     "agent-harness": "./bin/agent-harness.js"
@@ -24,7 +24,8 @@
   ],
   "scripts": {
     "test": "node --test",
-    "check": "node --test && node scripts/check-examples.js"
+    "validate:self": "node bin/agent-harness.js validate --config agent-harness.config.json",
+    "check": "node --test && node scripts/check-examples.js && npm run validate:self"
   },
   "keywords": [
     "agents",

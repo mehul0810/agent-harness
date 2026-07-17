@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "nodeMajor": 24,
+  "configSchemaVersion": 1,
+  "runRecordSchemaVersion": 1,
+  "runtimeDependencies": 0,
+  "consumerPinning": "exact_commit",
+  "publicationPolicy": "direct_main_after_validation"
+}

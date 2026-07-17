@@ -11,8 +11,11 @@
     { "name": "route-budget", "result": "pass" }
   ],
   "metrics": {
-    "inputTokens": 64,
-    "checksPassed": 2
+    "input_tokens": 64,
+    "output_tokens": 18,
+    "tool_calls": 1,
+    "retry_count": 0,
+    "checks_passed": 2
   },
   "tags": ["example"]
 }
