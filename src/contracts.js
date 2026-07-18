@@ -182,8 +182,11 @@ export function validateConfigObject(input) {
   };
 }
 
-const RUN_KEYS = new Set(['$schema', 'schemaVersion', 'runId', 'scenario', 'result', 'startedAt', 'durationMs', 'checks', 'metrics', 'tags']);
+const RUN_KEYS = new Set(['$schema', 'schemaVersion', 'runId', 'scenario', 'result', 'startedAt', 'durationMs', 'checks', 'metrics', 'tags', 'lineage', 'measurement']);
 const CHECK_KEYS = new Set(['name', 'result', 'message']);
+const LINEAGE_KEYS = new Set(['observationId', 'workItemId', 'decisionId', 'actionId', 'verificationId', 'learningCandidateId', 'artifactPointer']);
+const MEASUREMENT_KEYS = new Set(['status', 'windowEndsAt', 'verifiedAt', 'metricNames', 'summary']);
+const MEASUREMENT_STATES = new Set(['pending', 'met', 'missed', 'inconclusive', 'not_applicable']);
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 
@@ -235,5 +238,42 @@ export function validateRunRecordObject(input) {
   }
 
   if (input.tags !== undefined) checkStringArray(input.tags, '$.tags', diagnostics);
+
+  if (input.lineage !== undefined) {
+    if (!isObject(input.lineage) || Object.keys(input.lineage).length === 0) {
+      add(diagnostics, '$.lineage', 'Expected a non-empty object.');
+    } else {
+      checkKeys(input.lineage, LINEAGE_KEYS, '$.lineage', diagnostics);
+      for (const [name, value] of Object.entries(input.lineage)) {
+        if (checkString(value, `$.lineage.${name}`, diagnostics) && value.length > 500) {
+          add(diagnostics, `$.lineage.${name}`, 'Expected a string no longer than 500 characters.');
+        }
+      }
+    }
+  }
+
+  if (input.measurement !== undefined) {
+    if (!isObject(input.measurement)) {
+      add(diagnostics, '$.measurement', 'Expected an object.');
+    } else {
+      checkKeys(input.measurement, MEASUREMENT_KEYS, '$.measurement', diagnostics);
+      if (!MEASUREMENT_STATES.has(input.measurement.status)) add(diagnostics, '$.measurement.status', 'Expected pending, met, missed, inconclusive, or not_applicable.');
+      for (const name of ['windowEndsAt', 'verifiedAt']) {
+        const value = input.measurement[name];
+        if (value !== undefined && value !== null && (typeof value !== 'string' || !ISO_TIMESTAMP.test(value) || Number.isNaN(Date.parse(value)))) {
+          add(diagnostics, `$.measurement.${name}`, 'Expected null or an ISO 8601 UTC timestamp with milliseconds.');
+        }
+      }
+      if (input.measurement.metricNames !== undefined) {
+        checkStringArray(input.measurement.metricNames, '$.measurement.metricNames', diagnostics);
+        for (const [index, name] of input.measurement.metricNames.entries()) {
+          if (!SAFE_ID.test(name)) add(diagnostics, `$.measurement.metricNames[${index}]`, 'Metric name is not portable.');
+        }
+      }
+      if (input.measurement.summary !== undefined && (typeof input.measurement.summary !== 'string' || input.measurement.summary.length > 500)) {
+        add(diagnostics, '$.measurement.summary', 'Expected a string no longer than 500 characters.');
+      }
+    }
+  }
   return { valid: diagnostics.length === 0, diagnostics, value: diagnostics.length === 0 ? input : undefined };
 }

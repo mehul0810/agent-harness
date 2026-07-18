@@ -64,13 +64,13 @@ See complete [skills](./examples/skills/agent-harness.config.json), [loop](./exa
 
 ## Run Records
 
-Run records intentionally exclude prompts, model output, secrets, model identifiers, and product policy. The closed schema accepts identity, outcome, timing, checks, numeric metrics, and optional tags:
+Run records intentionally exclude prompts, model output, secrets, model identifiers, and product policy. The closed schema accepts identity, outcome, timing, checks, numeric metrics, optional tags, sanitized lineage pointers, and measurement status:
 
 ```sh
 agent-harness validate-run --file examples/run-record/run.json
 ```
 
-See [run-record.schema.json](./schemas/run-record.schema.json) and the [example run](./examples/run-record/run.json).
+Use lineage to connect an observation, decision, action, verification, learning candidate, and durable artifact without copying their payloads. Use `measurement.status` plus named numeric metrics to record whether the expected outcome was met after its verification window. See [run-record.schema.json](./schemas/run-record.schema.json) and the [example run](./examples/run-record/run.json).
 Use the [portable metric names](./docs/run-record-metrics.md) when the host reports token or tool telemetry. Never estimate unavailable values.
 
 ## Library

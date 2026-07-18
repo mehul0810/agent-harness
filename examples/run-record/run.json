@@ -17,5 +17,18 @@
     "retry_count": 0,
     "checks_passed": 2
   },
+  "lineage": {
+    "observationId": "obs-2026-07-14-001",
+    "workItemId": "work-001",
+    "decisionId": "decision-001",
+    "actionId": "action-001",
+    "verificationId": "verification-001"
+  },
+  "measurement": {
+    "status": "met",
+    "verifiedAt": "2026-07-14T05:01:00.000Z",
+    "metricNames": ["checks_passed"],
+    "summary": "The expected validation result was observed."
+  },
   "tags": ["example"]
 }

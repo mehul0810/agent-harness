@@ -204,6 +204,37 @@ test('validates sanitized run records and rejects extra payload fields', () => {
   assert.equal(unsafePayload.diagnostics[0].path, '$.prompt');
 });
 
+test('validates sanitized lineage and measurement without accepting payload data', () => {
+  const record = {
+    schemaVersion: 1,
+    runId: 'run-lineage-001',
+    scenario: 'feedback-outcome',
+    result: 'succeeded',
+    startedAt: '2026-07-18T05:00:00.000Z',
+    durationMs: 42,
+    checks: [{ name: 'contract', result: 'pass' }],
+    metrics: { issues_created: 1, outcome_delta: 0.2 },
+    lineage: {
+      observationId: 'obs-001',
+      decisionId: 'decision-001',
+      actionId: 'https://github.com/example/repo/issues/1',
+      verificationId: 'verify-001',
+      learningCandidateId: 'lc_123456789abc'
+    },
+    measurement: {
+      status: 'met',
+      windowEndsAt: '2026-07-25T05:00:00.000Z',
+      verifiedAt: '2026-07-25T05:05:00.000Z',
+      metricNames: ['outcome_delta'],
+      summary: 'The bounded outcome met its target.'
+    }
+  };
+
+  assert.equal(validateRunRecordObject(record).valid, true);
+  assert.equal(validateRunRecordObject({ ...record, lineage: { prompt: 'do not store this' } }).valid, false);
+  assert.equal(validateRunRecordObject({ ...record, measurement: { status: 'claimed' } }).valid, false);
+});
+
 test('accepts loop lifecycle outcomes and keeps check results separate', () => {
   for (const result of ['succeeded', 'no-op', 'blocked', 'failed', 'escalated']) {
     const record = {
