@@ -8,6 +8,7 @@
     "TESTING.md",
     "contracts/compatibility.json",
     "docs/run-record-metrics.md",
+    "docs/behavior-baselines.md",
     "evals/harness-contracts.md",
     "schemas/config.schema.json",
     "schemas/run-record.schema.json"
@@ -26,6 +27,13 @@
         "omit unavailable values rather than estimating",
         "input_tokens",
         "output_tokens"
+      ]
+    },
+    {
+      "file": "docs/behavior-baselines.md",
+      "phrases": [
+        "source-bound evaluation evidence",
+        "measurement.status"
       ]
     }
   ],
@@ -66,5 +74,6 @@
         "Local-first gate"
       ]
     }
-  ]
+  ],
+  "behaviorBaselines": []
 }

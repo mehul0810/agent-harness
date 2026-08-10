@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -66,13 +67,90 @@ function diagnosticCodes(result) {
   return result.diagnostics.map((item) => item.code);
 }
 
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function sourceDigest(files) {
+  const hash = createHash('sha256');
+  for (const [file, content] of Object.entries(files).sort(([left], [right]) => left.localeCompare(right))) {
+    const bytes = Buffer.from(content);
+    hash.update(file);
+    hash.update('\0');
+    hash.update(String(bytes.length));
+    hash.update('\0');
+    hash.update(bytes);
+    hash.update('\0');
+  }
+  return hash.digest('hex');
+}
+
+function scenarioDigest(id, file, anchor, line) {
+  const hash = createHash('sha256');
+  for (const value of [id, file, anchor, line]) {
+    hash.update(value);
+    hash.update('\0');
+  }
+  return hash.digest('hex');
+}
+
 test('validates a project at exact skill and route word-budget boundaries', async () => {
   const root = await projectFixture();
   const result = await validateProject(path.join(root, 'agent-harness.config.json'));
 
   assert.equal(result.ok, true);
   assert.equal(result.exitCode, EXIT_CODES.OK);
-  assert.deepEqual(result.summary, { projectRoot: await realpath(root), filesChecked: 4, scenariosChecked: 1 });
+  assert.deepEqual(result.summary, { projectRoot: await realpath(root), filesChecked: 4, scenariosChecked: 1, behaviorBaselinesChecked: 0 });
+});
+
+test('binds behavior evidence to exact source, scenario, run checks, outcome, and telemetry', async () => {
+  const root = await temporaryDirectory();
+  const sourceFiles = { 'skills/example/SKILL.md': 'bounded behavior\n' };
+  const scenarioLine = 'Scenario: bounded behavior must remain observable.';
+  const sourceSha = sourceDigest(sourceFiles);
+  const scenarioSha = scenarioDigest('bounded-behavior', 'evals/scenarios.md', 'Scenario: bounded behavior', scenarioLine);
+  const run = {
+    schemaVersion: 1,
+    runId: 'run-001',
+    scenario: 'bounded-behavior',
+    result: 'succeeded',
+    startedAt: new Date().toISOString(),
+    durationMs: 20,
+    checks: [{ name: 'scope', result: 'pass' }],
+    metrics: { checks_passed: 1, input_tokens: 80 },
+    tags: ['source-blind'],
+    lineage: { verificationId: 'run-001', artifactPointer: 'evals/run-001.json' },
+    measurement: { status: 'met', verifiedAt: new Date().toISOString(), summary: 'Observed behavior met the bounded scenario.' },
+  };
+  const runText = `${JSON.stringify(run)}\n`;
+  const config = {
+    schemaVersion: 1,
+    projectRoot: '.',
+    requiredFiles: [],
+    requiredPhrases: [],
+    routeBudgets: [],
+    scenarios: [],
+    behaviorBaselines: [{
+      name: 'bounded',
+      sourceFiles: Object.keys(sourceFiles),
+      sourceSha256: sourceSha,
+      scenario: { id: 'bounded-behavior', files: ['evals/scenarios.md'], anchors: ['Scenario: bounded behavior'], sha256: scenarioSha },
+      requiredChecks: ['scope'],
+      requiredTags: ['source-blind'],
+      maxAgeDays: 1,
+      telemetryBudgets: [{ metric: 'input_tokens', required: true, max: 100 }],
+      evidence: { runRecord: 'evals/run-001.json', runRecordSha256: sha256(runText), testedSourceSha256: sourceSha, testedScenarioSha256: scenarioSha },
+    }],
+  };
+  await writeFiles(root, { ...sourceFiles, 'evals/scenarios.md': `${scenarioLine}\n`, 'evals/run-001.json': runText });
+  await writeFile(path.join(root, 'agent-harness.config.json'), `${JSON.stringify(config)}\n`);
+
+  const valid = await validateProject(path.join(root, 'agent-harness.config.json'));
+  assert.equal(valid.ok, true, JSON.stringify(valid.diagnostics));
+
+  await writeFile(path.join(root, 'skills/example/SKILL.md'), 'changed behavior\n');
+  const stale = await validateProject(path.join(root, 'agent-harness.config.json'));
+  assert.ok(diagnosticCodes(stale).includes('BEHAVIOR_SOURCE_STALE'));
 });
 
 test('reports a missing required file', async () => {
@@ -204,6 +282,25 @@ test('validates sanitized run records and rejects extra payload fields', () => {
   assert.equal(unsafePayload.diagnostics[0].path, '$.prompt');
 });
 
+test('rejects successful run records without passing checks or closed outcome evidence', () => {
+  const record = {
+    schemaVersion: 1,
+    runId: 'run-closure',
+    scenario: 'closure',
+    result: 'succeeded',
+    startedAt: '2026-07-14T05:00:00.000Z',
+    durationMs: 1,
+    checks: [{ name: 'contract', result: 'fail' }],
+    metrics: {},
+    measurement: { status: 'met' },
+  };
+  const result = validateRunRecordObject(record);
+  assert.equal(result.valid, false);
+  assert.ok(result.diagnostics.some((item) => item.path === '$.checks'));
+  assert.ok(result.diagnostics.some((item) => item.path === '$.measurement.verifiedAt'));
+  assert.ok(result.diagnostics.some((item) => item.path === '$.measurement.summary'));
+});
+
 test('validates sanitized lineage and measurement without accepting payload data', () => {
   const record = {
     schemaVersion: 1,
@@ -278,7 +375,9 @@ test('validate-run rejects invalid timestamps and negative durations', async () 
 
   const result = await executeCli(['validate-run', '--file', 'run.json'], { cwd: root });
   assert.equal(result.exitCode, EXIT_CODES.VALIDATION_FAILED);
-  assert.equal(result.diagnostics.length, 2);
+  assert.ok(result.diagnostics.some((item) => item.path === '$.startedAt'));
+  assert.ok(result.diagnostics.some((item) => item.path === '$.durationMs'));
+  assert.ok(result.diagnostics.some((item) => item.path === '$.checks'));
 });
 
 test('init creates a valid scaffold and never overwrites existing files', async () => {

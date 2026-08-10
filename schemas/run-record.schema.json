@@ -33,6 +33,19 @@
     "lineage": { "$ref": "#/$defs/lineage" },
     "measurement": { "$ref": "#/$defs/measurement" }
   },
+  "allOf": [
+    {
+      "if": { "properties": { "result": { "const": "succeeded" } }, "required": ["result"] },
+      "then": {
+        "properties": {
+          "checks": {
+            "minItems": 1,
+            "items": { "allOf": [{ "$ref": "#/$defs/check" }, { "properties": { "result": { "const": "pass" } } }] }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "outcome": { "enum": ["succeeded", "no-op", "blocked", "failed", "escalated"] },
     "checkResult": { "enum": ["pass", "fail", "error"] },
@@ -74,7 +87,21 @@
           "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" }
         },
         "summary": { "type": "string", "maxLength": 500 }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "pending" } }, "required": ["status"] },
+          "then": { "required": ["windowEndsAt"], "properties": { "windowEndsAt": { "type": "string", "format": "date-time" } } }
+        },
+        {
+          "if": { "properties": { "status": { "enum": ["met", "missed", "inconclusive"] } }, "required": ["status"] },
+          "then": { "required": ["verifiedAt", "summary"], "properties": { "verifiedAt": { "type": "string", "format": "date-time" }, "summary": { "type": "string", "minLength": 1, "maxLength": 500 } } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "not_applicable" } }, "required": ["status"] },
+          "then": { "required": ["summary"], "properties": { "summary": { "type": "string", "minLength": 1, "maxLength": 500 } } }
+        }
+      ]
     },
     "pointer": {
       "type": "string",

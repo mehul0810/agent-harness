@@ -52,11 +52,14 @@ Add `--json` to any command for a single JSON result on stdout or stderr. `--hel
       "file": "evals/scenarios.md",
       "requiredPhrases": ["Expected: pass"]
     }
-  ]
+  ],
+  "behaviorBaselines": []
 }
 ```
 
 All sections except `schemaVersion` and `projectRoot` are optional. Word counts are deterministic and whitespace-delimited. A file passes when its count is equal to its limit. Route counts are the sum of their listed files. An optional `warningPercent` from 1 to 100 emits a non-failing route warning at or above that utilization.
+
+`scenarios` remain lightweight inventory checks. Use [behavior baselines](./docs/behavior-baselines.md) for a source-bound behavioral claim: they verify deterministic source and scenario digests, the exact sanitized run record, required passing checks, measured outcome, lineage, freshness, and optional telemetry ceilings.
 
 Paths in configuration are portable forward-slash paths relative to the configured project root. Absolute paths, traversal, and symlinks that resolve outside that root are rejected. The CLI performs no shell execution or network access. Only `init` mutates files.
 
@@ -71,6 +74,7 @@ agent-harness validate-run --file examples/run-record/run.json
 ```
 
 Use lineage to connect an observation, decision, action, verification, learning candidate, and durable artifact without copying their payloads. Use `measurement.status` plus named numeric metrics to record whether the expected outcome was met after its verification window. See [run-record.schema.json](./schemas/run-record.schema.json) and the [example run](./examples/run-record/run.json).
+Successful run records require at least one check and every recorded check must pass. Pending measurements require a verification window; closed measurements require a timestamp and evidence summary.
 Use the [portable metric names](./docs/run-record-metrics.md) when the host reports token or tool telemetry. Never estimate unavailable values.
 
 ## Library

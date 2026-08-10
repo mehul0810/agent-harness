@@ -28,6 +28,7 @@ function template(type) {
         skillBudgets: { defaultMaxWords: 200, files: ['skills/example/SKILL.md'], overrides: {} },
         routeBudgets: [{ name: 'default', maxWords: 250, files: ['skills/example/SKILL.md'] }],
         scenarios: [{ name: 'happy-path', file: 'evals/scenarios.md', requiredPhrases: ['Expected: pass'] }],
+        behaviorBaselines: [],
       }),
     };
   }
@@ -44,6 +45,7 @@ function template(type) {
         requiredPhrases: [{ file: 'LOOP.md', phrases: ['## Stop condition'] }],
         routeBudgets: [{ name: 'loop', maxWords: 250, files: ['LOOP.md'] }],
         scenarios: [{ name: 'happy-path', file: 'evals/scenarios.md', requiredPhrases: ['Expected: pass'] }],
+        behaviorBaselines: [],
       }),
     };
   }
@@ -59,6 +61,7 @@ function template(type) {
       requiredPhrases: [{ file: 'docs/overview.md', phrases: ['## Scope'] }],
       routeBudgets: [{ name: 'docs', maxWords: 250, files: ['README.md', 'docs/overview.md'] }],
       scenarios: [{ name: 'happy-path', file: 'evals/scenarios.md', requiredPhrases: ['Expected: pass'] }],
+      behaviorBaselines: [],
     }),
   };
 }
