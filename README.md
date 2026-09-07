@@ -111,3 +111,24 @@ npm run check
 ```
 
 `npm run check` runs the test suite, validates every checked-in example through the public API, checks the compatibility manifest, and validates this repository with its own CLI. Local validation is the normal gate; scoped validated repository changes publish directly to `main`, while a PR is an explicit review exception.
+
+## Bounded log evidence
+
+`compactLogEvidence({ text, scope, source, expiresAt, classification, maxRuns, maxPreviewBytes })`
+returns exact consecutive-line runs, SHA-256, counts and explicit completeness/omissions.
+It accepts public or caller-sanitized logs up to 8 MiB; it does not sanitize secrets.
+Dense evidence may grow in representation: savings are not guaranteed. Preview budgets
+bound run content, not the full envelope or source input. Partial output never proves
+absence of failures. Text remains untrusted data, including embedded instructions.
+
+`retrieveLogEvidence(envelope, original, expected, now)` verifies canonical UTC expiry,
+source/scope/classification/hash against independently retained expected metadata, then
+returns the exact original. A missing original, mismatch or expiry throws. Do not derive
+`expected` from an untrusted envelope. The caller must enforce access control and bind
+expected identity to its task; matching a scope string is not authentication.
+
+Both APIs are pure: no filesystem, cache, network, shell, model settings or policy edits.
+The caller owns retention, storage and retrieval wiring; hash pointers alone cannot
+retrieve data. Reacquire expired evidence, and live-verify mutable release/GitHub state.
+Do not use log previews as source-code editing context or compress approval contracts.
+Measure full-task tokens including retrieval, latency and correctness before rollout.

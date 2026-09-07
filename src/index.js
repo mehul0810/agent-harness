@@ -1,3 +1,4 @@
+export { compactLogEvidence, retrieveLogEvidence } from './evidence.js';
 export { executeCli, formatCliResult } from './cli.js';
 export { EXIT_CODES, VERSION } from './constants.js';
 export { validateConfigObject, validateRunRecordObject } from './contracts.js';
