@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Paired sanitized efficiency comparison",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "baselineId", "candidateId", "requiredChecks", "pairs"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "baselineId": { "$ref": "#/$defs/id" },
+    "candidateId": { "$ref": "#/$defs/id" },
+    "requiredChecks": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "\\S" } },
+    "pairs": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["split", "baseline", "candidate"],
+        "properties": {
+          "split": { "enum": ["train", "held-out"] },
+          "baseline": { "$ref": "#/$defs/run" },
+          "candidate": { "$ref": "#/$defs/run" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "count": { "type": "integer", "minimum": 0 },
+    "run": {
+      "allOf": [
+        { "$ref": "run-record.schema.json" },
+        { "required": ["lineage"], "properties": {
+          "lineage": { "required": ["workItemId", "artifactPointer"] },
+          "metrics": { "properties": {
+            "input_tokens": { "$ref": "#/$defs/count" },
+            "cached_input_tokens": { "$ref": "#/$defs/count" },
+            "output_tokens": { "$ref": "#/$defs/count" },
+            "context_tokens_peak": { "$ref": "#/$defs/count" },
+            "tool_calls": { "$ref": "#/$defs/count" },
+            "retry_count": { "$ref": "#/$defs/count" }
+          } }
+        } }
+      ]
+    }
+  }
+}
