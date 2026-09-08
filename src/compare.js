@@ -34,6 +34,7 @@ export function compareRuns(input) {
       if (runs.has(run.runId)) reject(`${path}.${variant}.runId`, 'Run cannot be reused.');
       runs.add(run.runId);
       for (const metric of METRICS) if (run.metrics[metric] !== undefined && (run.metrics[metric] < 0 || !Number.isInteger(run.metrics[metric]))) reject(`${path}.${variant}.metrics.${metric}`, 'Expected a non-negative integer count.');
+      if (run.metrics.cached_input_tokens !== undefined && run.metrics.input_tokens !== undefined && run.metrics.cached_input_tokens > run.metrics.input_tokens) reject(`${path}.${variant}.metrics.cached_input_tokens`, 'Cached input cannot exceed total input tokens.');
       if (!run.lineage?.workItemId || !run.lineage?.artifactPointer) reject(`${path}.${variant}.lineage`, 'Task and artifact identity are required.');
     }
     if (!validRuns) continue;
@@ -45,7 +46,7 @@ export function compareRuns(input) {
     identities.add(identity);
   }
   if (diagnostics.length) return { valid: false, diagnostics };
-  const quality = (run) => run.result === 'succeeded' && run.measurement?.status === 'met' && input.requiredChecks.every((name) => run.checks.some((check) => check.name === name && check.result === 'pass'));
+  const quality = (run) => run.result === 'succeeded' && run.measurement?.status === 'met' && run.checks.every((check) => check.result === 'pass') && input.requiredChecks.every((name) => run.checks.filter((check) => check.name === name && check.result === 'pass').length === 1);
   const splits = {};
   for (const split of ['train', 'held-out']) {
     const pairs = input.pairs.filter((pair) => pair.split === split);
@@ -56,8 +57,9 @@ export function compareRuns(input) {
         metrics[metric] = { status: 'unavailable' };
         continue;
       }
-      const baseline = pairs.reduce((sum, pair) => sum + read(pair.baseline), 0);
-      const candidate = pairs.reduce((sum, pair) => sum + read(pair.candidate), 0);
+      const aggregate = (variant) => pairs.reduce((value, pair) => metric === 'context_tokens_peak' ? Math.max(value, read(pair[variant])) : value + read(pair[variant]), 0);
+      const baseline = aggregate('baseline');
+      const candidate = aggregate('candidate');
       metrics[metric] = Number.isSafeInteger(baseline) && Number.isSafeInteger(candidate)
         ? { status: 'available', baseline, candidate, delta: candidate - baseline }
         : { status: 'unavailable' };

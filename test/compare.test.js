@@ -39,3 +39,29 @@ test('rejects mismatched artifacts, leakage, duplicate runs, bad telemetry and o
   }
   for (const input of [null, [], {}, { pairs: [null] }]) assert.equal(compareRuns(input).valid, false);
 });
+
+test('rejects duplicate passing checks, conflicting checks, and cached input over total', () => {
+  for (const result of ['pass', 'fail', 'error']) {
+    const input = fixture();
+    input.pairs[0].candidate.checks.push({ name: 'quality', result });
+    assert.equal(compareRuns(input).valid, false);
+  }
+  const input = fixture();
+  input.pairs[0].candidate.metrics = { input_tokens: 10, cached_input_tokens: 11 };
+  assert.equal(compareRuns(input).valid, false);
+  input.pairs[0].candidate.metrics.cached_input_tokens = 10;
+  assert.equal(compareRuns(input).valid, true);
+});
+
+test('compares maximum context peaks, not summed peaks', () => {
+  const input = fixture();
+  const second = structuredClone(input.pairs[0]);
+  second.baseline.runId = 'a2'; second.candidate.runId = 'b2';
+  for (const variant of ['baseline', 'candidate']) second[variant].lineage.workItemId = 'task-2';
+  input.pairs.push(second);
+  input.pairs[0].baseline.metrics.context_tokens_peak = 100;
+  input.pairs[0].candidate.metrics.context_tokens_peak = 80;
+  second.baseline.metrics.context_tokens_peak = 20;
+  second.candidate.metrics.context_tokens_peak = 90;
+  assert.deepEqual(compareRuns(input).splits['held-out'].metrics.context_tokens_peak, { status: 'available', baseline: 100, candidate: 90, delta: -10 });
+});
