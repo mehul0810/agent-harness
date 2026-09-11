@@ -11,7 +11,9 @@
     "docs/behavior-baselines.md",
     "evals/harness-contracts.md",
     "schemas/config.schema.json",
-    "schemas/run-record.schema.json"
+    "schemas/run-record.schema.json",
+    "schemas/continuity.schema.json",
+    "docs/continuity.md"
   ],
   "requiredPhrases": [
     {

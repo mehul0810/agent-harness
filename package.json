@@ -12,7 +12,8 @@
   "exports": {
     ".": "./src/index.js",
     "./schemas/config": "./schemas/config.schema.json",
-    "./schemas/run-record": "./schemas/run-record.schema.json"
+    "./schemas/run-record": "./schemas/run-record.schema.json",
+    "./schemas/continuity": "./schemas/continuity.schema.json"
   },
   "files": [
     "bin",

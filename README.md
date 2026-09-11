@@ -1,5 +1,9 @@
 # Agent Harness
 
+For private task checkpoint validation, model-bound headroom assessment and
+read-only recovery adapters, see [continuity](docs/continuity.md). These APIs do
+not compact a model, write memory, install hooks or grant action authority.
+
 `@mehul0810/agent-harness` is a dependency-free Node.js CLI and library for validating agent project files, deterministic word budgets, scenario inventories, and sanitized evaluation run records.
 
 ## Requirements

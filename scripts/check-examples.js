@@ -21,7 +21,7 @@ if (compatibility.publicationPolicy !== 'direct_main_after_validation') {
   throw new Error('Compatibility must preserve direct-main publication after validation.');
 }
 
-for (const schema of ['config.schema.json', 'run-record.schema.json']) {
+for (const schema of ['config.schema.json', 'run-record.schema.json', 'continuity.schema.json']) {
   JSON.parse(await readFile(path.join(root, 'schemas', schema), 'utf8'));
 }
 

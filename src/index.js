@@ -6,3 +6,4 @@ export { initProject } from './init.js';
 export { countWords, validateProject, validateRunFile } from './validate.js';
 
 export { compareRuns } from "./compare.js";
+export { validateContinuityCheckpoint, assessContinuityCheckpoint, readContinuityCheckpoint, assessContextBudget } from './continuity.js';
