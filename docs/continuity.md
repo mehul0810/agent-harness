@@ -8,6 +8,14 @@ rotates checkpoints; this package is read-only.
 
 ## Public APIs
 
+- `readContinuityRecovery(input)` is an additive retrieval adapter. Intact evidence
+  in the same session/workspace can return `status: historical`, `retrievable: true`
+  after HEAD/branch changes or expiry, but always `ok: false`. Future timestamps,
+  other sessions/workspaces and missing/changed evidence never receive a usable
+  historical pointer. Missing checkpoint returns `absent`; corrupt/inaccessible
+  data remains invalid. The strict reader below is unchanged. Retrieval does not
+  revive an approval, completed proof or current-state claim.
+
 - `validateContinuityCheckpoint(value)` checks the closed v1 schema and bounded
   semantics. Schema: `@mehul0810/agent-harness/schemas/continuity`.
 - `assessContinuityCheckpoint(value, expected)` compares current caller-observed

@@ -100,7 +100,8 @@ export function assessContinuityCheckpoint(value, expected) {
 
 async function readBounded(root, relative, limit) {
   const file = await resolveProjectFile(root, relative);
-  if (!file.exists || !file.isFile) throw new Error('unavailable');
+  if (!file.exists) throw Object.assign(new Error('unavailable'), { code: 'ENOENT' });
+  if (!file.isFile) throw new Error('unavailable');
   const handle = await open(file.path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const info = await handle.stat();
@@ -119,13 +120,29 @@ async function readBounded(root, relative, limit) {
 
 /** Read-only adapter; no transcript access, shell, network, or checkpoint writes. */
 export async function readContinuityCheckpoint(input) {
+  return readCheckpoint(input, false);
+}
+
+/** Historical retrieval never changes the strict current-state or approval verdict. */
+export async function readContinuityRecovery(input) {
+  return readCheckpoint(input, true);
+}
+
+async function readCheckpoint(input, recovery) {
+  let checkpointRead = false;
   try {
     if (!shape(input, ['projectRoot', 'file', 'expected'])) throw new Error('invalid input');
     const { projectRoot, file, expected } = input;
     const root = await realpath(projectRoot);
     const value = JSON.parse((await readBounded(root, file, 32768)).toString('utf8'));
+    checkpointRead = true;
     const result = assessContinuityCheckpoint(value, expected);
-    if (!result.ok) return result;
+    const historical = recovery && result.status === 'stale'
+      && value.sessionId === expected.sessionId && value.workspaceId === expected.workspaceId
+      && expected.now >= Date.parse(value.updatedAt)
+      && result.diagnostics.every(d => d.code === 'CHECKPOINT_STALE'
+        || (d.code === 'CHECKPOINT_IDENTITY_MISMATCH' && ['head', 'branch'].includes(d.path)));
+    if (!result.ok && !historical) return result;
     let total = 0;
     for (const item of value.evidence) {
       const bytes = await readBounded(root, item.path, 1048576);
@@ -134,8 +151,12 @@ export async function readContinuityCheckpoint(input) {
         return { ok: false, status: 'stale', diagnostics: [issue('CHECKPOINT_EVIDENCE_MISMATCH', 'evidence')], warnings: [] };
       }
     }
-    return result;
-  } catch {
+    if (historical) return { ...result, ok: false, status: 'historical', retrievable: true };
+    return recovery ? { ...result, retrievable: true } : result;
+  } catch (error) {
+    if (recovery && !checkpointRead && error?.code === 'ENOENT') {
+      return { ok: false, status: 'absent', retrievable: false, diagnostics: [issue('CHECKPOINT_ABSENT', '$')], warnings: [] };
+    }
     return { ok: false, status: 'invalid', diagnostics: [issue('CHECKPOINT_UNAVAILABLE', '$')], warnings: [] };
   }
 }
