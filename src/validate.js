@@ -292,6 +292,71 @@ export async function validateProject(configPath) {
   }
 }
 
+export async function planContext(configPath, routeName) {
+  const command = 'plan-context';
+  try {
+    const resolvedConfig = await realpath(path.resolve(configPath));
+    const input = await readJsonFile(resolvedConfig, 'Configuration');
+    const contract = validateConfigObject(input);
+    if (!contract.valid) {
+      return { ok: false, command, exitCode: EXIT_CODES.INVALID_INPUT, diagnostics: contract.diagnostics };
+    }
+
+    const route = contract.value.routeBudgets.find((candidate) => candidate.name === routeName);
+    if (!route) {
+      return failureResult(command, new HarnessError(`Unknown context route: ${routeName}`, {
+        code: 'ROUTE_NOT_FOUND',
+      }));
+    }
+
+    const projectRoot = await resolveProjectRoot(path.dirname(resolvedConfig), contract.value.projectRoot);
+    const files = [];
+    for (const configuredPath of route.files) {
+      const file = await resolveProjectFile(projectRoot, configuredPath);
+      if (!file.exists || !file.isFile) {
+        return failureResult(command, new HarnessError('Context route file is missing or not a regular file.', {
+          code: file.exists ? 'FILE_NOT_REGULAR' : 'FILE_MISSING',
+          path: configuredPath,
+        }));
+      }
+      let content;
+      try {
+        content = await readFile(file.path, 'utf8');
+      } catch {
+        return failureResult(command, new HarnessError('Context route file could not be read as UTF-8 text.', {
+          code: 'FILE_UNREADABLE',
+          path: configuredPath,
+        }));
+      }
+      files.push({ path: configuredPath, words: countWords(content) });
+    }
+
+    const actualWords = files.reduce((total, file) => total + file.words, 0);
+    return {
+      ok: actualWords <= route.maxWords,
+      command,
+      exitCode: actualWords <= route.maxWords ? EXIT_CODES.OK : EXIT_CODES.VALIDATION_FAILED,
+      diagnostics: actualWords <= route.maxWords ? [] : [diagnostic(
+        'ROUTE_BUDGET_EXCEEDED',
+        `Route ${JSON.stringify(route.name)} uses ${actualWords} words; limit is ${route.maxWords}.`,
+        { route: route.name, actualWords, maxWords: route.maxWords },
+      )],
+      summary: {
+        route: route.name,
+        files,
+        actualWords,
+        maxWords: route.maxWords,
+        headroomWords: route.maxWords - actualWords,
+      },
+    };
+  } catch (error) {
+    if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') {
+      return failureResult(command, new HarnessError('Configuration file does not exist.', { code: 'FILE_MISSING', path: configPath }));
+    }
+    return failureResult(command, error);
+  }
+}
+
 export async function validateRunFile(filePath, { cwd = process.cwd() } = {}) {
   const command = 'validate-run';
   try {
