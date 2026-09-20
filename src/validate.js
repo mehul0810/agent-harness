@@ -332,6 +332,24 @@ export async function planContext(configPath, routeName) {
     }
 
     const actualWords = files.reduce((total, file) => total + file.words, 0);
+    const warnings = [];
+    if (
+      actualWords <= route.maxWords
+      && route.warningPercent !== undefined
+      && actualWords * 100 >= route.maxWords * route.warningPercent
+    ) {
+      warnings.push(diagnostic(
+        'ROUTE_BUDGET_WARNING',
+        `Route ${JSON.stringify(route.name)} uses ${actualWords} words; warning threshold is ${route.warningPercent}% of ${route.maxWords}.`,
+        {
+          severity: 'warning',
+          route: route.name,
+          actualWords,
+          maxWords: route.maxWords,
+          warningPercent: route.warningPercent,
+        },
+      ));
+    }
     return {
       ok: actualWords <= route.maxWords,
       command,
@@ -341,6 +359,7 @@ export async function planContext(configPath, routeName) {
         `Route ${JSON.stringify(route.name)} uses ${actualWords} words; limit is ${route.maxWords}.`,
         { route: route.name, actualWords, maxWords: route.maxWords },
       )],
+      warnings,
       summary: {
         route: route.name,
         files,
