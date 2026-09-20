@@ -104,6 +104,13 @@ export function formatCliResult(result) {
   }
 
   if (result.text) return `${result.text}\n`;
+  if (result.command === 'plan-context' && result.summary) {
+    const { route, files, actualWords, maxWords, headroomWords } = result.summary;
+    const warnings = (result.warnings ?? []).map((item) => `WARNING ${item.code}: ${item.message}`);
+    const errors = result.diagnostics.map((item) => `ERROR ${item.code}: ${item.message}`);
+    const manifest = files.map((file) => `- ${file.path}: ${file.words} words`).join('\n');
+    return `${[...warnings, ...errors, `Context route: ${route}`, manifest, `Total: ${actualWords}/${maxWords} words; headroom ${headroomWords}.`].filter(Boolean).join('\n')}\n`;
+  }
   if (result.ok) {
     const warningText = (result.warnings ?? []).map((item) => {
       const location = item.path ? ` [${item.path}]` : '';
@@ -116,11 +123,6 @@ export function formatCliResult(result) {
     }
     if (result.command === 'validate-run') {
       return `OK: run ${result.summary.runId} is valid.\n`;
-    }
-    if (result.command === 'plan-context') {
-      const { route, files, actualWords, maxWords, headroomWords } = result.summary;
-      const manifest = files.map((file) => `- ${file.path}: ${file.words} words`).join('\n');
-      return `Context route: ${route}\n${manifest}\nTotal: ${actualWords}/${maxWords} words; headroom ${headroomWords}.\n`;
     }
     if (result.command === 'init') {
       return `OK: created ${result.summary.filesCreated.length} files in ${result.summary.directory}.\n`;
