@@ -9,6 +9,7 @@ import {
   executeCli,
   formatCliResult,
   initProject,
+  planContext,
   validateProject,
   validateRunRecordObject,
 } from '../src/index.js';
@@ -101,6 +102,40 @@ test('validates a project at exact skill and route word-budget boundaries', asyn
   assert.equal(result.ok, true);
   assert.equal(result.exitCode, EXIT_CODES.OK);
   assert.deepEqual(result.summary, { projectRoot: await realpath(root), filesChecked: 4, scenariosChecked: 1, behaviorBaselinesChecked: 0 });
+});
+
+test('plans a deterministic minimum context bundle for a named route', async () => {
+  const root = await projectFixture();
+  const result = await planContext(path.join(root, 'agent-harness.config.json'), 'main');
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.summary, {
+    route: 'main',
+    files: [
+      { path: 'skills/example/SKILL.md', words: 3 },
+      { path: 'route.md', words: 3 },
+    ],
+    actualWords: 6,
+    maxWords: 6,
+    headroomWords: 0,
+  });
+});
+
+test('rejects an unknown context route without reading unrelated files', async () => {
+  const root = await projectFixture();
+  const result = await planContext(path.join(root, 'agent-harness.config.json'), 'missing');
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(diagnosticCodes(result), ['ROUTE_NOT_FOUND']);
+});
+
+test('supports plan-context through the CLI', async () => {
+  const root = await projectFixture();
+  const result = await executeCli(['plan-context', '--config', 'agent-harness.config.json', '--route', 'main'], { cwd: root });
+
+  assert.equal(result.ok, true);
+  assert.match(formatCliResult(result), /Context route: main/);
+  assert.match(formatCliResult(result), /Total: 6\/6 words; headroom 0/);
 });
 
 test('binds behavior evidence to exact source, scenario, run checks, outcome, and telemetry', async () => {
