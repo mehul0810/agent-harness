@@ -2,12 +2,13 @@ import path from 'node:path';
 import { EXIT_CODES, VERSION } from './constants.js';
 import { failureResult, HarnessError } from './errors.js';
 import { initProject } from './init.js';
-import { validateProject, validateRunFile } from './validate.js';
+import { planContext, validateProject, validateRunFile } from './validate.js';
 
 const HELP = `agent-harness ${VERSION}
 
 Usage:
   agent-harness validate --config <path> [--json]
+  agent-harness plan-context --config <path> --route <name> [--json]
   agent-harness validate-run --file <path> [--json]
   agent-harness init --type <skills|loop|docs> --dir <path> [--json]
 
@@ -77,6 +78,12 @@ export async function executeCli(argv, { cwd = process.cwd() } = {}) {
       return { ...(await validateRunFile(options['--file'], { cwd })), json };
     }
 
+    if (command === 'plan-context') {
+      const options = parseOptions(args.slice(1), new Set(['--config', '--route']));
+      requireOptions(options, ['--config', '--route']);
+      return { ...(await planContext(path.resolve(cwd, options['--config']), options['--route'])), json };
+    }
+
     if (command === 'init') {
       const options = parseOptions(args.slice(1), new Set(['--type', '--dir']));
       requireOptions(options, ['--type', '--dir']);
@@ -97,6 +104,13 @@ export function formatCliResult(result) {
   }
 
   if (result.text) return `${result.text}\n`;
+  if (result.command === 'plan-context' && result.summary) {
+    const { route, files, actualWords, maxWords, headroomWords } = result.summary;
+    const warnings = (result.warnings ?? []).map((item) => `WARNING ${item.code}: ${item.message}`);
+    const errors = result.diagnostics.map((item) => `ERROR ${item.code}: ${item.message}`);
+    const manifest = files.map((file) => `- ${file.path}: ${file.words} words`).join('\n');
+    return `${[...warnings, ...errors, `Context route: ${route}`, manifest, `Total: ${actualWords}/${maxWords} words; headroom ${headroomWords}.`].filter(Boolean).join('\n')}\n`;
+  }
   if (result.ok) {
     const warningText = (result.warnings ?? []).map((item) => {
       const location = item.path ? ` [${item.path}]` : '';

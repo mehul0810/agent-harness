@@ -18,6 +18,7 @@ Install it as a development dependency or run the local binary. Use `main` for e
 ```sh
 npm install --save-dev github:mehul0810/agent-harness#main
 npx agent-harness validate --config agent-harness.config.json
+npx agent-harness plan-context --config agent-harness.config.json --route "review-route"
 npx agent-harness validate-run --file evals/run.json
 npx agent-harness init --type skills --dir packages/new-skills
 ```
@@ -66,6 +67,8 @@ All sections except `schemaVersion` and `projectRoot` are optional. Word counts 
 `scenarios` remain lightweight inventory checks. Use [behavior baselines](./docs/behavior-baselines.md) for a source-bound behavioral claim: they verify deterministic source and scenario digests, the exact sanitized run record, required passing checks, measured outcome, lineage, freshness, and optional telemetry ceilings.
 
 Paths in configuration are portable forward-slash paths relative to the configured project root. Absolute paths, traversal, and symlinks that resolve outside that root are rejected. The CLI performs no shell execution or network access. Only `init` mutates files.
+
+`plan-context` turns one configured route into a deterministic minimum-context manifest. It reports the ordered files, per-file word counts, total budget use, and remaining headroom without printing file contents. Consumers should load only the returned files for that route and retrieve additional sources only when a concrete task condition requires them. Route word counts are planning proxies, not token measurements; use run records for host-reported token telemetry.
 
 See complete [skills](./examples/skills/agent-harness.config.json), [loop](./examples/loop/agent-harness.config.json), and [docs](./examples/docs/agent-harness.config.json) examples.
 
