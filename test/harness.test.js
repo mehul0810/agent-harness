@@ -138,6 +138,33 @@ test('supports plan-context through the CLI', async () => {
   assert.match(formatCliResult(result), /Total: 6\/6 words; headroom 0/);
 });
 
+test('plan-context preserves configured route warnings', async () => {
+  const config = baseConfig({
+    routeBudgets: [{ name: 'main', maxWords: 7, warningPercent: 85, files: ['skills/example/SKILL.md', 'route.md'] }],
+  });
+  const root = await projectFixture(config);
+  const result = await planContext(path.join(root, 'agent-harness.config.json'), 'main');
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.warnings.map((item) => item.code), ['ROUTE_BUDGET_WARNING']);
+  assert.match(formatCliResult(result), /^WARNING ROUTE_BUDGET_WARNING:/);
+  assert.match(formatCliResult(result), /Context route: main/);
+});
+
+test('plan-context prints its manifest when the route exceeds its budget', async () => {
+  const config = baseConfig({
+    routeBudgets: [{ name: 'main', maxWords: 5, files: ['skills/example/SKILL.md', 'route.md'] }],
+  });
+  const root = await projectFixture(config);
+  const result = await planContext(path.join(root, 'agent-harness.config.json'), 'main');
+  const output = formatCliResult(result);
+
+  assert.equal(result.ok, false);
+  assert.match(output, /^ERROR ROUTE_BUDGET_EXCEEDED:/);
+  assert.match(output, /- skills\/example\/SKILL.md: 3 words/);
+  assert.match(output, /Total: 6\/5 words; headroom -1/);
+});
+
 test('binds behavior evidence to exact source, scenario, run checks, outcome, and telemetry', async () => {
   const root = await temporaryDirectory();
   const sourceFiles = { 'skills/example/SKILL.md': 'bounded behavior\n' };
