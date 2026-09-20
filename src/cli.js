@@ -2,12 +2,13 @@ import path from 'node:path';
 import { EXIT_CODES, VERSION } from './constants.js';
 import { failureResult, HarnessError } from './errors.js';
 import { initProject } from './init.js';
-import { validateProject, validateRunFile } from './validate.js';
+import { planContext, validateProject, validateRunFile } from './validate.js';
 
 const HELP = `agent-harness ${VERSION}
 
 Usage:
   agent-harness validate --config <path> [--json]
+  agent-harness plan-context --config <path> --route <name> [--json]
   agent-harness validate-run --file <path> [--json]
   agent-harness init --type <skills|loop|docs> --dir <path> [--json]
 
@@ -77,6 +78,12 @@ export async function executeCli(argv, { cwd = process.cwd() } = {}) {
       return { ...(await validateRunFile(options['--file'], { cwd })), json };
     }
 
+    if (command === 'plan-context') {
+      const options = parseOptions(args.slice(1), new Set(['--config', '--route']));
+      requireOptions(options, ['--config', '--route']);
+      return { ...(await planContext(path.resolve(cwd, options['--config']), options['--route'])), json };
+    }
+
     if (command === 'init') {
       const options = parseOptions(args.slice(1), new Set(['--type', '--dir']));
       requireOptions(options, ['--type', '--dir']);
@@ -109,6 +116,11 @@ export function formatCliResult(result) {
     }
     if (result.command === 'validate-run') {
       return `OK: run ${result.summary.runId} is valid.\n`;
+    }
+    if (result.command === 'plan-context') {
+      const { route, files, actualWords, maxWords, headroomWords } = result.summary;
+      const manifest = files.map((file) => `- ${file.path}: ${file.words} words`).join('\n');
+      return `Context route: ${route}\n${manifest}\nTotal: ${actualWords}/${maxWords} words; headroom ${headroomWords}.\n`;
     }
     if (result.command === 'init') {
       return `OK: created ${result.summary.filesCreated.length} files in ${result.summary.directory}.\n`;
