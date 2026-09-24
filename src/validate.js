@@ -35,6 +35,7 @@ function projectReferences(config) {
   config.behaviorBaselines.forEach((baseline) => {
     baseline.sourceFiles.forEach((file) => references.add(file));
     baseline.scenario.files.forEach((file) => references.add(file));
+    baseline.scenario.fixtureFiles.forEach((file) => references.add(file));
     references.add(baseline.evidence.runRecord);
   });
   return references;
@@ -60,30 +61,24 @@ async function digestFiles(files, configuredPaths) {
   return hash.digest('hex');
 }
 
-async function digestScenario(files, scenario, diagnostics, baselineName) {
+async function digestScenario(files, scenario) {
   const hash = createHash('sha256');
+  hash.update(scenario.sha256Scope);
+  hash.update('\0');
   hash.update(scenario.id);
   hash.update('\0');
-  for (const configuredPath of [...scenario.files].sort()) {
-    const file = files.get(configuredPath);
-    if (!file?.exists || !file.isFile) return null;
-    const content = await readFile(file.path, 'utf8');
-    const lines = content.split(/\r?\n/u);
-    for (const anchor of scenario.anchors) {
-      const matches = lines.filter((line) => line.includes(anchor));
-      if (matches.length !== 1) {
-        diagnostics.push(diagnostic('BEHAVIOR_SCENARIO_ANCHOR_INVALID', `Behavior baseline ${JSON.stringify(baselineName)} anchor must match exactly one line; found ${matches.length}.`, {
-          path: configuredPath,
-          baseline: baselineName,
-          anchor,
-        }));
-        continue;
-      }
+  for (const [kind, configuredPaths] of [['scenario', scenario.files], ['fixture', scenario.fixtureFiles]]) {
+    hash.update(kind);
+    hash.update('\0');
+    for (const configuredPath of [...configuredPaths].sort()) {
+      const file = files.get(configuredPath);
+      if (!file?.exists || !file.isFile) return null;
+      const bytes = await readFile(file.path);
       hash.update(configuredPath);
       hash.update('\0');
-      hash.update(anchor);
+      hash.update(String(bytes.length));
       hash.update('\0');
-      hash.update(matches[0]);
+      hash.update(bytes);
       hash.update('\0');
     }
   }
@@ -92,12 +87,12 @@ async function digestScenario(files, scenario, diagnostics, baselineName) {
 
 async function validateBehaviorBaseline(baseline, files, diagnostics, now = Date.now()) {
   const sourceDigest = await digestFiles(files, baseline.sourceFiles);
-  const scenarioDigest = await digestScenario(files, baseline.scenario, diagnostics, baseline.name);
+  const scenarioDigest = await digestScenario(files, baseline.scenario);
   if (sourceDigest !== null && sourceDigest !== baseline.sourceSha256) {
     diagnostics.push(diagnostic('BEHAVIOR_SOURCE_STALE', `Behavior baseline ${JSON.stringify(baseline.name)} no longer matches its source files.`, { baseline: baseline.name }));
   }
   if (scenarioDigest !== null && scenarioDigest !== baseline.scenario.sha256) {
-    diagnostics.push(diagnostic('BEHAVIOR_SCENARIO_STALE', `Behavior baseline ${JSON.stringify(baseline.name)} no longer matches its scenario anchors.`, { baseline: baseline.name }));
+    diagnostics.push(diagnostic('BEHAVIOR_SCENARIO_STALE', `Behavior baseline ${JSON.stringify(baseline.name)} no longer matches its scenario or fixture files.`, { baseline: baseline.name }));
   }
   if (baseline.evidence.testedSourceSha256 !== baseline.sourceSha256 || baseline.evidence.testedScenarioSha256 !== baseline.scenario.sha256) {
     diagnostics.push(diagnostic('BEHAVIOR_EVIDENCE_STALE', `Behavior evidence for ${JSON.stringify(baseline.name)} was produced for different source or scenario content.`, { baseline: baseline.name }));

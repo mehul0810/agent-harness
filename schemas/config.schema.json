@@ -115,16 +115,21 @@
     "behaviorScenario": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "files", "anchors", "sha256"],
+      "required": ["id", "sha256Scope", "files", "fixtureFiles", "sha256"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
+        "sha256Scope": { "const": "full-contract-v2" },
         "files": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/filePath" }
         },
-        "anchors": { "$ref": "#/$defs/nonEmptyStrings" },
+        "fixtureFiles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/filePath" }
+        },
         "sha256": { "$ref": "#/$defs/sha256" }
       }
     },

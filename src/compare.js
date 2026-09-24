@@ -52,7 +52,10 @@ export function compareRuns(input) {
     const pairs = input.pairs.filter((pair) => pair.split === split);
     const metrics = {};
     for (const metric of ['durationMs', ...METRICS]) {
-      const read = (run) => metric === 'durationMs' ? run.durationMs : run.metrics[metric];
+      const read = (run) => {
+        if (metric !== 'durationMs') return run.metrics[metric];
+        return run.durationScope === 'full_task' ? run.durationMs : undefined;
+      };
       if (!pairs.length || pairs.some((pair) => read(pair.baseline) === undefined || read(pair.candidate) === undefined)) {
         metrics[metric] = { status: 'unavailable' };
         continue;

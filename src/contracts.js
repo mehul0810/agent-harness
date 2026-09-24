@@ -216,10 +216,14 @@ export function validateConfigObject(input) {
       if (!isObject(scenario)) {
         add(diagnostics, `${baselinePath}.scenario`, 'Expected an object.');
       } else {
-        checkKeys(scenario, new Set(['id', 'files', 'anchors', 'sha256']), `${baselinePath}.scenario`, diagnostics);
+        checkKeys(scenario, new Set(['id', 'sha256Scope', 'files', 'fixtureFiles', 'sha256']), `${baselinePath}.scenario`, diagnostics);
         checkString(scenario.id, `${baselinePath}.scenario.id`, diagnostics);
+        if (scenario.sha256Scope !== 'full-contract-v2') add(diagnostics, `${baselinePath}.scenario.sha256Scope`, 'Expected full-contract-v2; anchor-only baselines require refreshed approval.');
         checkStringArray(scenario.files, `${baselinePath}.scenario.files`, diagnostics, { allowEmpty: false });
-        checkStringArray(scenario.anchors, `${baselinePath}.scenario.anchors`, diagnostics, { allowEmpty: false });
+        checkStringArray(scenario.fixtureFiles, `${baselinePath}.scenario.fixtureFiles`, diagnostics);
+        if (Array.isArray(scenario.files) && Array.isArray(scenario.fixtureFiles) && scenario.fixtureFiles.some((file) => scenario.files.includes(file))) {
+          add(diagnostics, `${baselinePath}.scenario.fixtureFiles`, 'Fixture files must be listed separately from scenario files.');
+        }
         checkSha256(scenario.sha256, `${baselinePath}.scenario.sha256`, diagnostics);
       }
 
@@ -280,7 +284,7 @@ export function validateConfigObject(input) {
   };
 }
 
-const RUN_KEYS = new Set(['$schema', 'schemaVersion', 'runId', 'scenario', 'result', 'startedAt', 'durationMs', 'checks', 'metrics', 'tags', 'lineage', 'measurement']);
+const RUN_KEYS = new Set(['$schema', 'schemaVersion', 'runId', 'scenario', 'result', 'startedAt', 'durationMs', 'durationScope', 'checks', 'metrics', 'tags', 'lineage', 'measurement']);
 const CHECK_KEYS = new Set(['name', 'result', 'message']);
 const LINEAGE_KEYS = new Set(['observationId', 'workItemId', 'decisionId', 'actionId', 'verificationId', 'learningCandidateId', 'artifactPointer']);
 const MEASUREMENT_KEYS = new Set(['status', 'windowEndsAt', 'verifiedAt', 'metricNames', 'summary']);
@@ -307,6 +311,9 @@ export function validateRunRecordObject(input) {
     add(diagnostics, '$.startedAt', 'Expected an ISO 8601 UTC timestamp with milliseconds.');
   }
   if (!Number.isInteger(input.durationMs) || input.durationMs < 0) add(diagnostics, '$.durationMs', 'Expected a non-negative integer.');
+  if (input.durationScope !== undefined && !['full_task', 'partial_observation_window', 'shared_batch_interval'].includes(input.durationScope)) {
+    add(diagnostics, '$.durationScope', 'Expected full_task, partial_observation_window, or shared_batch_interval.');
+  }
 
   if (!Array.isArray(input.checks)) {
     add(diagnostics, '$.checks', 'Expected an array.');

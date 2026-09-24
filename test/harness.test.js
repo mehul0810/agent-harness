@@ -86,11 +86,24 @@ function sourceDigest(files) {
   return hash.digest('hex');
 }
 
-function scenarioDigest(id, file, anchor, line) {
+function scenarioDigest(id, scenarioFiles, fixtureFiles = {}) {
   const hash = createHash('sha256');
-  for (const value of [id, file, anchor, line]) {
-    hash.update(value);
+  hash.update('full-contract-v2');
+  hash.update('\0');
+  hash.update(id);
+  hash.update('\0');
+  for (const [kind, files] of [['scenario', scenarioFiles], ['fixture', fixtureFiles]]) {
+    hash.update(kind);
     hash.update('\0');
+    for (const [file, content] of Object.entries(files).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)) {
+      const bytes = Buffer.from(content);
+      hash.update(file);
+      hash.update('\0');
+      hash.update(String(bytes.length));
+      hash.update('\0');
+      hash.update(bytes);
+      hash.update('\0');
+    }
   }
   return hash.digest('hex');
 }
@@ -168,9 +181,10 @@ test('plan-context prints its manifest when the route exceeds its budget', async
 test('binds behavior evidence to exact source, scenario, run checks, outcome, and telemetry', async () => {
   const root = await temporaryDirectory();
   const sourceFiles = { 'skills/example/SKILL.md': 'bounded behavior\n' };
-  const scenarioLine = 'Scenario: bounded behavior must remain observable.';
+  const scenarioFiles = { 'evals/scenarios.md': 'Scenario: bounded behavior must remain observable.\nAdditional instruction text.\n' };
+  const fixtureFiles = { 'evals/input.json': '{"mode":"safe"}\n' };
   const sourceSha = sourceDigest(sourceFiles);
-  const scenarioSha = scenarioDigest('bounded-behavior', 'evals/scenarios.md', 'Scenario: bounded behavior', scenarioLine);
+  const scenarioSha = scenarioDigest('bounded-behavior', scenarioFiles, fixtureFiles);
   const run = {
     schemaVersion: 1,
     runId: 'run-001',
@@ -196,7 +210,7 @@ test('binds behavior evidence to exact source, scenario, run checks, outcome, an
       name: 'bounded',
       sourceFiles: Object.keys(sourceFiles),
       sourceSha256: sourceSha,
-      scenario: { id: 'bounded-behavior', files: ['evals/scenarios.md'], anchors: ['Scenario: bounded behavior'], sha256: scenarioSha },
+      scenario: { id: 'bounded-behavior', sha256Scope: 'full-contract-v2', files: Object.keys(scenarioFiles), fixtureFiles: Object.keys(fixtureFiles), sha256: scenarioSha },
       requiredChecks: ['scope'],
       requiredTags: ['source-blind'],
       maxAgeDays: 1,
@@ -204,15 +218,74 @@ test('binds behavior evidence to exact source, scenario, run checks, outcome, an
       evidence: { runRecord: 'evals/run-001.json', runRecordSha256: sha256(runText), testedSourceSha256: sourceSha, testedScenarioSha256: scenarioSha },
     }],
   };
-  await writeFiles(root, { ...sourceFiles, 'evals/scenarios.md': `${scenarioLine}\n`, 'evals/run-001.json': runText });
+  await writeFiles(root, { ...sourceFiles, ...scenarioFiles, ...fixtureFiles, 'evals/run-001.json': runText });
   await writeFile(path.join(root, 'agent-harness.config.json'), `${JSON.stringify(config)}\n`);
 
   const valid = await validateProject(path.join(root, 'agent-harness.config.json'));
   assert.equal(valid.ok, true, JSON.stringify(valid.diagnostics));
 
+  await writeFile(path.join(root, 'evals/scenarios.md'), `${scenarioFiles['evals/scenarios.md']}Changed instruction outside prior anchor.\n`);
+  const changedScenario = await validateProject(path.join(root, 'agent-harness.config.json'));
+  assert.ok(diagnosticCodes(changedScenario).includes('BEHAVIOR_SCENARIO_STALE'));
+  await writeFile(path.join(root, 'evals/scenarios.md'), scenarioFiles['evals/scenarios.md']);
+
+  await writeFile(path.join(root, 'evals/input.json'), '{"mode":"unsafe"}\n');
+  const changedFixture = await validateProject(path.join(root, 'agent-harness.config.json'));
+  assert.ok(diagnosticCodes(changedFixture).includes('BEHAVIOR_SCENARIO_STALE'));
+  await writeFile(path.join(root, 'evals/input.json'), fixtureFiles['evals/input.json']);
+
   await writeFile(path.join(root, 'skills/example/SKILL.md'), 'changed behavior\n');
   const stale = await validateProject(path.join(root, 'agent-harness.config.json'));
   assert.ok(diagnosticCodes(stale).includes('BEHAVIOR_SOURCE_STALE'));
+});
+
+test('fails closed for legacy anchor-only behavior baselines', async () => {
+  const root = await temporaryDirectory();
+  const scenarioSha = '0'.repeat(64);
+  const run = {
+    schemaVersion: 1,
+    runId: 'run-legacy',
+    scenario: 'legacy',
+    result: 'succeeded',
+    startedAt: new Date().toISOString(),
+    durationMs: 1,
+    checks: [{ name: 'scope', result: 'pass' }],
+    metrics: { checks_passed: 1 },
+    lineage: { verificationId: 'run-legacy', artifactPointer: 'evals/run-legacy.json' },
+    measurement: { status: 'met', verifiedAt: new Date().toISOString(), summary: 'Verified.' },
+  };
+  const runText = `${JSON.stringify(run)}\n`;
+  const config = {
+    schemaVersion: 1,
+    projectRoot: '.',
+    behaviorBaselines: [{
+      name: 'legacy', sourceFiles: ['source.md'], sourceSha256: sha256('source.md\0'),
+      scenario: { id: 'legacy', files: ['scenario.md'], anchors: ['Scenario: legacy'], sha256: scenarioSha },
+      requiredChecks: ['scope'],
+      evidence: { runRecord: 'evals/run-legacy.json', runRecordSha256: sha256(runText), testedSourceSha256: '0'.repeat(64), testedScenarioSha256: scenarioSha },
+    }],
+  };
+  await writeFiles(root, { 'source.md': 'source\n', 'scenario.md': 'Scenario: legacy\n', 'evals/run-legacy.json': runText });
+  const configPath = path.join(root, 'agent-harness.config.json');
+  await writeFile(configPath, JSON.stringify(config));
+
+  const result = await validateProject(configPath);
+  assert.equal(result.exitCode, EXIT_CODES.INVALID_INPUT);
+  assert.ok(result.diagnostics.some((item) => item.path.endsWith('.sha256Scope') && /refreshed approval/u.test(item.message)));
+});
+
+test('applies project-root path safety to behavior fixture files', async () => {
+  const config = baseConfig({ requiredFiles: [], requiredPhrases: [], skillBudgets: undefined, routeBudgets: [], scenarios: [] });
+  delete config.skillBudgets;
+  config.behaviorBaselines = [{
+    name: 'fixture-path', sourceFiles: ['source.md'], sourceSha256: '0'.repeat(64),
+    scenario: { id: 'fixture-path', sha256Scope: 'full-contract-v2', files: ['scenario.md'], fixtureFiles: ['../outside.json'], sha256: '0'.repeat(64) },
+    requiredChecks: ['scope'], evidence: { runRecord: 'run.json', runRecordSha256: '0'.repeat(64), testedSourceSha256: '0'.repeat(64), testedScenarioSha256: '0'.repeat(64) },
+  }];
+  const root = await projectFixture(config, { 'source.md': 'source\n', 'scenario.md': 'scenario\n', 'run.json': '{}' });
+  const result = await validateProject(path.join(root, 'agent-harness.config.json'));
+  assert.equal(result.exitCode, EXIT_CODES.UNSAFE_PATH);
+  assert.ok(diagnosticCodes(result).includes('UNSAFE_PATH'));
 });
 
 test('reports a missing required file', async () => {
