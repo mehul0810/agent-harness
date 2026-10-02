@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "policy_version": "routing-v2-2026-10-02",
+  "canonical_repository": "mehul0810/agent-loop",
+  "canonical_path": "policies/model-routing.json",
+  "mode": "proposal",
+  "invariants": [
+    "independent_model_and_effort",
+    "explicit_locks",
+    "verified_runtime_support",
+    "authorized_set_and_budget",
+    "feasibility_before_capacity",
+    "cause_aware_bounded_retry",
+    "proportional_context_and_delegation",
+    "no_authority_expansion"
+  ]
+}

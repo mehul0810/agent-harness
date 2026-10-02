@@ -141,3 +141,14 @@ The caller owns retention, storage and retrieval wiring; hash pointers alone can
 retrieve data. Reacquire expired evidence, and live-verify mutable release/GitHub state.
 Do not use log previews as source-code editing context or compress approval contracts.
 Measure full-task tokens including retrieval, latency and correctness before rollout.
+
+## Versioned routing descriptor
+
+`validateRoutingContract` validates the closed, model-free descriptor in
+`contracts/routing-policy.json`. Consumers can compare canonical repository/path,
+policy version, adoption mode and boundary invariants before using a policy.
+The executable model policy remains in agent-loop. Validation grants no model,
+spending, dispatch or adoption authority; proposal descriptors are not installed
+configuration. Existing run records continue to exclude model IDs and payloads.
+Use `assessContextBudget` for actual model-bound session headroom independently
+of a task's model suitability; its proportional behavior is preserved.
