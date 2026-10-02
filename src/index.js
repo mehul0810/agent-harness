@@ -7,3 +7,4 @@ export { countWords, planContext, validateProject, validateRunFile } from './val
 
 export { compareRuns } from "./compare.js";
 export { validateContinuityCheckpoint, assessContinuityCheckpoint, readContinuityCheckpoint, readContinuityRecovery, assessContextBudget } from './continuity.js';
+export { validateRoutingContract } from './routing-contract.js';
