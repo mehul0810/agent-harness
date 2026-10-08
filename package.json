@@ -20,6 +20,8 @@
     "src",
     "schemas",
     "examples",
+    "docs",
+    "contracts/routing-policy.json",
     "README.md",
     "LICENSE"
   ],

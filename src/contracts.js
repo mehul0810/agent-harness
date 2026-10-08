@@ -95,10 +95,10 @@ export function validateConfigObject(input) {
   }
   checkString(input.projectRoot, '$.projectRoot', diagnostics);
 
-  const requiredFiles = input.requiredFiles ?? [];
+  const requiredFiles = input.requiredFiles === undefined ? [] : input.requiredFiles;
   checkStringArray(requiredFiles, '$.requiredFiles', diagnostics);
 
-  const requiredPhrases = input.requiredPhrases ?? [];
+  const requiredPhrases = input.requiredPhrases === undefined ? [] : input.requiredPhrases;
   if (!Array.isArray(requiredPhrases)) {
     add(diagnostics, '$.requiredPhrases', 'Expected an array.');
   } else {
@@ -136,7 +136,7 @@ export function validateConfigObject(input) {
     }
   }
 
-  const routeBudgets = input.routeBudgets ?? [];
+  const routeBudgets = input.routeBudgets === undefined ? [] : input.routeBudgets;
   const routeNames = new Set();
   if (!Array.isArray(routeBudgets)) {
     add(diagnostics, '$.routeBudgets', 'Expected an array.');
@@ -163,7 +163,7 @@ export function validateConfigObject(input) {
     });
   }
 
-  const scenarios = input.scenarios ?? [];
+  const scenarios = input.scenarios === undefined ? [] : input.scenarios;
   const scenarioNames = new Set();
   if (!Array.isArray(scenarios)) {
     add(diagnostics, '$.scenarios', 'Expected an array.');
@@ -184,7 +184,7 @@ export function validateConfigObject(input) {
     });
   }
 
-  const behaviorBaselines = input.behaviorBaselines ?? [];
+  const behaviorBaselines = input.behaviorBaselines === undefined ? [] : input.behaviorBaselines;
   const baselineNames = new Set();
   if (!Array.isArray(behaviorBaselines)) {
     add(diagnostics, '$.behaviorBaselines', 'Expected an array.');
@@ -238,7 +238,7 @@ export function validateConfigObject(input) {
         checkSha256(evidence.testedScenarioSha256, `${baselinePath}.evidence.testedScenarioSha256`, diagnostics);
       }
 
-      const telemetryBudgets = baseline.telemetryBudgets ?? [];
+      const telemetryBudgets = baseline.telemetryBudgets === undefined ? [] : baseline.telemetryBudgets;
       if (!Array.isArray(telemetryBudgets)) {
         add(diagnostics, `${baselinePath}.telemetryBudgets`, 'Expected an array.');
       } else {
@@ -263,6 +263,7 @@ export function validateConfigObject(input) {
           const hasRegression = budget.baseline !== undefined && budget.maxRegressionPercent !== undefined;
           if (!hasMaximum && !hasRegression) add(diagnostics, budgetPath, 'Expected max or baseline plus maxRegressionPercent.');
           if ((budget.baseline === undefined) !== (budget.maxRegressionPercent === undefined)) add(diagnostics, budgetPath, 'baseline and maxRegressionPercent must be provided together.');
+          if (hasMaximum && hasRegression) add(diagnostics, budgetPath, 'Use either max or baseline plus maxRegressionPercent, not both.');
         });
       }
     });
@@ -291,6 +292,8 @@ const MEASUREMENT_KEYS = new Set(['status', 'windowEndsAt', 'verifiedAt', 'metri
 const MEASUREMENT_STATES = new Set(['pending', 'met', 'missed', 'inconclusive', 'not_applicable']);
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
+const canonicalTimestamp = value => typeof value === 'string' && ISO_TIMESTAMP.test(value)
+  && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 
 export function validateRunRecordObject(input) {
   const diagnostics = [];
@@ -307,7 +310,7 @@ export function validateRunRecordObject(input) {
   }
   checkString(input.scenario, '$.scenario', diagnostics);
   if (!OUTCOME_VALUES.includes(input.result)) add(diagnostics, '$.result', 'Expected succeeded, no-op, blocked, failed, or escalated.');
-  if (typeof input.startedAt !== 'string' || !ISO_TIMESTAMP.test(input.startedAt) || Number.isNaN(Date.parse(input.startedAt))) {
+  if (!canonicalTimestamp(input.startedAt)) {
     add(diagnostics, '$.startedAt', 'Expected an ISO 8601 UTC timestamp with milliseconds.');
   }
   if (!Number.isInteger(input.durationMs) || input.durationMs < 0) add(diagnostics, '$.durationMs', 'Expected a non-negative integer.');
@@ -342,10 +345,13 @@ export function validateRunRecordObject(input) {
   if (!isObject(input.metrics)) {
     add(diagnostics, '$.metrics', 'Expected an object of finite numbers.');
   } else {
+    const counters = new Set(['input_tokens', 'cached_input_tokens', 'output_tokens', 'context_tokens_peak', 'tool_calls', 'retry_count']);
     for (const [name, value] of Object.entries(input.metrics)) {
       if (!SAFE_ID.test(name)) add(diagnostics, `$.metrics.${name}`, 'Metric name is not portable.');
       if (typeof value !== 'number' || !Number.isFinite(value)) add(diagnostics, `$.metrics.${name}`, 'Expected a finite number.');
+      else if (counters.has(name) && (!Number.isSafeInteger(value) || value < 0)) add(diagnostics, `$.metrics.${name}`, 'Expected a non-negative safe integer count.');
     }
+    if (input.metrics.cached_input_tokens !== undefined && input.metrics.input_tokens !== undefined && input.metrics.cached_input_tokens > input.metrics.input_tokens) add(diagnostics, '$.metrics.cached_input_tokens', 'Cached input cannot exceed total input tokens.');
   }
 
   if (input.tags !== undefined) checkStringArray(input.tags, '$.tags', diagnostics);
@@ -371,30 +377,34 @@ export function validateRunRecordObject(input) {
       if (!MEASUREMENT_STATES.has(input.measurement.status)) add(diagnostics, '$.measurement.status', 'Expected pending, met, missed, inconclusive, or not_applicable.');
       for (const name of ['windowEndsAt', 'verifiedAt']) {
         const value = input.measurement[name];
-        if (value !== undefined && value !== null && (typeof value !== 'string' || !ISO_TIMESTAMP.test(value) || Number.isNaN(Date.parse(value)))) {
+        if (value !== undefined && value !== null && !canonicalTimestamp(value)) {
           add(diagnostics, `$.measurement.${name}`, 'Expected null or an ISO 8601 UTC timestamp with milliseconds.');
         }
       }
       if (input.measurement.metricNames !== undefined) {
-        checkStringArray(input.measurement.metricNames, '$.measurement.metricNames', diagnostics);
-        for (const [index, name] of input.measurement.metricNames.entries()) {
-          if (!SAFE_ID.test(name)) add(diagnostics, `$.measurement.metricNames[${index}]`, 'Metric name is not portable.');
+        if (checkStringArray(input.measurement.metricNames, '$.measurement.metricNames', diagnostics)) {
+          for (const [index, name] of input.measurement.metricNames.entries()) {
+            if (typeof name === 'string' && !SAFE_ID.test(name)) add(diagnostics, `$.measurement.metricNames[${index}]`, 'Metric name is not portable.');
+          }
         }
       }
       if (input.measurement.summary !== undefined && (typeof input.measurement.summary !== 'string' || input.measurement.summary.length > 500)) {
         add(diagnostics, '$.measurement.summary', 'Expected a string no longer than 500 characters.');
       }
       const { status, windowEndsAt, verifiedAt, summary } = input.measurement;
-      if (status === 'pending' && (typeof windowEndsAt !== 'string' || Number.isNaN(Date.parse(windowEndsAt)))) {
+      if (status === 'pending' && !canonicalTimestamp(windowEndsAt)) {
         add(diagnostics, '$.measurement.windowEndsAt', 'A pending measurement requires a verification window end.');
       }
       if (['met', 'missed', 'inconclusive'].includes(status)) {
-        if (typeof verifiedAt !== 'string' || Number.isNaN(Date.parse(verifiedAt))) add(diagnostics, '$.measurement.verifiedAt', 'A closed measurement requires a verification timestamp.');
+        if (!canonicalTimestamp(verifiedAt)) add(diagnostics, '$.measurement.verifiedAt', 'A closed measurement requires a verification timestamp.');
         if (typeof summary !== 'string' || summary.trim() === '') add(diagnostics, '$.measurement.summary', 'A closed measurement requires a concise evidence summary.');
       }
       if (status === 'not_applicable' && (typeof summary !== 'string' || summary.trim() === '')) add(diagnostics, '$.measurement.summary', 'A not-applicable measurement requires a reason.');
       if (typeof verifiedAt === 'string' && typeof input.startedAt === 'string' && !Number.isNaN(Date.parse(verifiedAt)) && !Number.isNaN(Date.parse(input.startedAt)) && Date.parse(verifiedAt) < Date.parse(input.startedAt)) {
         add(diagnostics, '$.measurement.verifiedAt', 'Verification cannot precede the run start.');
+      }
+      if (['met', 'missed', 'inconclusive'].includes(status) && canonicalTimestamp(windowEndsAt) && canonicalTimestamp(verifiedAt) && Date.parse(verifiedAt) < Date.parse(windowEndsAt)) {
+        add(diagnostics, '$.measurement.verifiedAt', 'Verification cannot precede the measurement window end.');
       }
     }
   }

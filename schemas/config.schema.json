@@ -155,9 +155,12 @@
         "baseline": { "type": "number", "minimum": 0 },
         "maxRegressionPercent": { "type": "number", "minimum": 0 }
       },
-      "anyOf": [
-        { "required": ["max"] },
-        { "required": ["baseline", "maxRegressionPercent"] }
+      "oneOf": [
+        {
+          "required": ["max"],
+          "not": { "anyOf": [{ "required": ["baseline"] }, { "required": ["maxRegressionPercent"] }] }
+        },
+        { "required": ["baseline", "maxRegressionPercent"], "not": { "required": ["max"] } }
       ]
     },
     "behaviorBaseline": {
@@ -177,6 +180,7 @@
         "requiredChecks": { "$ref": "#/$defs/nonEmptyStrings" },
         "requiredTags": {
           "type": "array",
+          "minItems": 1,
           "uniqueItems": true,
           "items": { "type": "string", "minLength": 1 }
         },

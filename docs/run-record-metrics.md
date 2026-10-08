@@ -12,7 +12,7 @@ Preferred portable names:
 - `retry_count`
 - `checks_passed`
 
-Metrics must be finite numbers. Do not store prompts, completions, model identifiers, secrets, product payloads, user content, cost-account identifiers, or hidden reasoning. Use `tags` for a non-sensitive capability class or route only when it aids comparison.
+Metrics must be finite numbers. Standard token, tool-call, and retry counters must also be non-negative safe integers; cached input cannot exceed total input when both are reported. Other domain metrics may be signed when that matches their meaning. Do not store prompts, completions, model identifiers, secrets, product payloads, user content, cost-account identifiers, or hidden reasoning. Use `tags` for a non-sensitive capability class or route only when it aids comparison.
 
 Compare like-for-like scenarios. Token reduction does not count as an improvement when correctness, proof, safety, or task completion regresses.
 

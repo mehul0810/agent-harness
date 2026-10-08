@@ -85,7 +85,7 @@ async function digestScenario(files, scenario) {
   return hash.digest('hex');
 }
 
-async function validateBehaviorBaseline(baseline, files, diagnostics, now = Date.now()) {
+async function validateBehaviorBaseline(baseline, files, diagnostics, now) {
   const sourceDigest = await digestFiles(files, baseline.sourceFiles);
   const scenarioDigest = await digestScenario(files, baseline.scenario);
   if (sourceDigest !== null && sourceDigest !== baseline.sourceSha256) {
@@ -120,6 +120,10 @@ async function validateBehaviorBaseline(baseline, files, diagnostics, now = Date
     diagnostics.push(diagnostic('BEHAVIOR_RUN_CONTRACT_INVALID', `${baseline.name}: ${item.message}`, { path: baseline.evidence.runRecord, baseline: baseline.name, contractPath: item.path }));
   }
   if (!contract.valid) return;
+
+  if (['met', 'missed', 'inconclusive'].includes(run.measurement?.status) && Date.parse(run.measurement.verifiedAt) > now) {
+    diagnostics.push(diagnostic('BEHAVIOR_VERIFICATION_FUTURE', `Behavior run for ${JSON.stringify(baseline.name)} is verified in the future.`, { path: baseline.evidence.runRecord, baseline: baseline.name }));
+  }
 
   const fileRunId = path.basename(baseline.evidence.runRecord, path.extname(baseline.evidence.runRecord));
   if (run.runId !== fileRunId) diagnostics.push(diagnostic('BEHAVIOR_RUN_ID_MISMATCH', `Run ID must match evidence filename ${JSON.stringify(fileRunId)}.`, { path: baseline.evidence.runRecord, baseline: baseline.name }));
@@ -163,9 +167,10 @@ function contentReferences(config) {
   return references;
 }
 
-export async function validateProject(configPath) {
+export async function validateProject(configPath, { now = Date.now() } = {}) {
   const command = 'validate';
   try {
+    if (!Number.isSafeInteger(now) || now < 0) throw new HarnessError('Validation clock must be a non-negative epoch-millisecond integer.', { code: 'USAGE_ERROR' });
     const resolvedConfig = await realpath(path.resolve(configPath));
     const configStats = await stat(resolvedConfig);
     if (!configStats.isFile()) throw new Error('not a file');
@@ -263,7 +268,7 @@ export async function validateProject(configPath) {
     }
 
     for (const baseline of config.behaviorBaselines) {
-      await validateBehaviorBaseline(baseline, files, diagnostics);
+      await validateBehaviorBaseline(baseline, files, diagnostics, now);
     }
 
     return {

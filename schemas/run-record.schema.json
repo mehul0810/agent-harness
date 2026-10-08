@@ -13,6 +13,7 @@
     "result": { "$ref": "#/$defs/outcome" },
     "startedAt": {
       "type": "string",
+      "format": "date-time",
       "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
     },
     "durationMs": { "type": "integer", "minimum": 0 },
@@ -24,7 +25,15 @@
     "metrics": {
       "type": "object",
       "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
-      "additionalProperties": { "type": "number" }
+      "additionalProperties": { "type": "number" },
+      "properties": {
+        "input_tokens": { "$ref": "#/$defs/counter" },
+        "cached_input_tokens": { "$ref": "#/$defs/counter" },
+        "output_tokens": { "$ref": "#/$defs/counter" },
+        "context_tokens_peak": { "$ref": "#/$defs/counter" },
+        "tool_calls": { "$ref": "#/$defs/counter" },
+        "retry_count": { "$ref": "#/$defs/counter" }
+      }
     },
     "tags": {
       "type": "array",
@@ -49,6 +58,7 @@
   ],
   "$defs": {
     "outcome": { "enum": ["succeeded", "no-op", "blocked", "failed", "escalated"] },
+    "counter": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
     "checkResult": { "enum": ["pass", "fail", "error"] },
     "check": {
       "type": "object",
@@ -80,8 +90,8 @@
       "required": ["status"],
       "properties": {
         "status": { "enum": ["pending", "met", "missed", "inconclusive", "not_applicable"] },
-        "windowEndsAt": { "type": ["string", "null"], "format": "date-time" },
-        "verifiedAt": { "type": ["string", "null"], "format": "date-time" },
+        "windowEndsAt": { "type": ["string", "null"], "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" },
+        "verifiedAt": { "type": ["string", "null"], "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" },
         "metricNames": {
           "type": "array",
           "uniqueItems": true,
@@ -92,11 +102,11 @@
       "allOf": [
         {
           "if": { "properties": { "status": { "const": "pending" } }, "required": ["status"] },
-          "then": { "required": ["windowEndsAt"], "properties": { "windowEndsAt": { "type": "string", "format": "date-time" } } }
+          "then": { "required": ["windowEndsAt"], "properties": { "windowEndsAt": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" } } }
         },
         {
           "if": { "properties": { "status": { "enum": ["met", "missed", "inconclusive"] } }, "required": ["status"] },
-          "then": { "required": ["verifiedAt", "summary"], "properties": { "verifiedAt": { "type": "string", "format": "date-time" }, "summary": { "type": "string", "minLength": 1, "maxLength": 500 } } }
+          "then": { "required": ["verifiedAt", "summary"], "properties": { "verifiedAt": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" }, "summary": { "type": "string", "minLength": 1, "maxLength": 500 } } }
         },
         {
           "if": { "properties": { "status": { "const": "not_applicable" } }, "required": ["status"] },

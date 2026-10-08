@@ -1,8 +1,8 @@
 import path from 'node:path';
-import { lstat, mkdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { EXIT_CODES } from './constants.js';
 import { diagnostic, failureResult, HarnessError } from './errors.js';
-import { resolveCliPath } from './path-safety.js';
+import { resolveCliPath, resolveProjectFile } from './path-safety.js';
 
 const TYPES = new Set(['skills', 'loop', 'docs']);
 
@@ -66,14 +66,15 @@ function template(type) {
   };
 }
 
-async function exists(filePath) {
-  try {
-    await lstat(filePath);
-    return true;
-  } catch (error) {
-    if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return false;
-    throw error;
+async function inspectDestination(root, relativePath) {
+  const segments = relativePath.split('/');
+  for (let index = 1; index < segments.length; index += 1) {
+    const ancestor = segments.slice(0, index).join('/');
+    const resolved = await resolveProjectFile(root, ancestor);
+    if (resolved.exists && !(await stat(resolved.path)).isDirectory()) return { obstruction: ancestor };
   }
+  const destination = await resolveProjectFile(root, relativePath);
+  return destination.exists ? { conflict: true } : {};
 }
 
 export async function initProject(type, directory, { cwd = process.cwd() } = {}) {
@@ -87,8 +88,9 @@ export async function initProject(type, directory, { cwd = process.cwd() } = {})
     const conflicts = [];
 
     for (const relativePath of Object.keys(files)) {
-      const destination = path.join(target, relativePath);
-      if (await exists(destination)) conflicts.push(relativePath);
+      const result = await inspectDestination(target, relativePath);
+      if (result.conflict) conflicts.push(relativePath);
+      else if (result.obstruction) conflicts.push(result.obstruction);
     }
 
     if (conflicts.length > 0) {
@@ -103,7 +105,9 @@ export async function initProject(type, directory, { cwd = process.cwd() } = {})
     const created = [];
     try {
       for (const [relativePath, content] of Object.entries(files)) {
-        const destination = path.join(target, relativePath);
+        const result = await inspectDestination(target, relativePath);
+        if (result.conflict || result.obstruction) throw Object.assign(new Error('destination appeared'), { code: 'EEXIST' });
+        const destination = (await resolveProjectFile(target, relativePath)).path;
         await mkdir(path.dirname(destination), { recursive: true });
         await writeFile(destination, content, { encoding: 'utf8', flag: 'wx' });
         created.push(destination);

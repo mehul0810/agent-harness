@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -11,6 +11,7 @@ import {
   initProject,
   planContext,
   validateProject,
+  validateConfigObject,
   validateRunRecordObject,
 } from '../src/index.js';
 
@@ -224,6 +225,17 @@ test('binds behavior evidence to exact source, scenario, run checks, outcome, an
   const valid = await validateProject(path.join(root, 'agent-harness.config.json'));
   assert.equal(valid.ok, true, JSON.stringify(valid.diagnostics));
 
+  const futureRun = { ...run, measurement: { ...run.measurement, verifiedAt: '2099-01-01T00:00:00.000Z' } };
+  const futureText = `${JSON.stringify(futureRun)}\n`;
+  const futureConfig = structuredClone(config);
+  futureConfig.behaviorBaselines[0].evidence.runRecordSha256 = sha256(futureText);
+  await writeFile(path.join(root, 'evals/run-001.json'), futureText);
+  await writeFile(path.join(root, 'agent-harness.config.json'), `${JSON.stringify(futureConfig)}\n`);
+  const future = await validateProject(path.join(root, 'agent-harness.config.json'), { now: Date.parse('2098-12-31T23:59:59.999Z') });
+  assert.ok(diagnosticCodes(future).includes('BEHAVIOR_VERIFICATION_FUTURE'));
+  await writeFile(path.join(root, 'evals/run-001.json'), runText);
+  await writeFile(path.join(root, 'agent-harness.config.json'), `${JSON.stringify(config)}\n`);
+
   await writeFile(path.join(root, 'evals/scenarios.md'), `${scenarioFiles['evals/scenarios.md']}Changed instruction outside prior anchor.\n`);
   const changedScenario = await validateProject(path.join(root, 'agent-harness.config.json'));
   assert.ok(diagnosticCodes(changedScenario).includes('BEHAVIOR_SCENARIO_STALE'));
@@ -417,6 +429,67 @@ test('validates sanitized run records and rejects extra payload fields', () => {
   assert.equal(unsafePayload.diagnostics[0].path, '$.prompt');
 });
 
+test('rejects explicit null optional config arrays while defaulting omitted arrays', () => {
+  const valid = validateConfigObject({ schemaVersion: 1, projectRoot: '.' });
+  assert.equal(valid.valid, true);
+  for (const key of ['requiredFiles', 'requiredPhrases', 'routeBudgets', 'scenarios', 'behaviorBaselines']) {
+    const result = validateConfigObject({ schemaVersion: 1, projectRoot: '.', [key]: null });
+    assert.equal(result.valid, false, key);
+    assert.ok(result.diagnostics.some((item) => item.path === `$.${key}`), key);
+  }
+});
+
+test('telemetry budgets cannot silently choose between simultaneous ceilings', () => {
+  const baseline = {
+    name: 'dual-limit', sourceFiles: ['source.md'], sourceSha256: 'a'.repeat(64),
+    scenario: { id: 'scenario', sha256Scope: 'full-contract-v2', files: ['scenario.md'], fixtureFiles: [], sha256: 'b'.repeat(64) },
+    requiredChecks: ['quality'], telemetryBudgets: [{ metric: 'input_tokens', max: 1000, baseline: 100, maxRegressionPercent: 10 }],
+    evidence: { runRecord: 'run.json', runRecordSha256: 'c'.repeat(64), testedSourceSha256: 'a'.repeat(64), testedScenarioSha256: 'b'.repeat(64) },
+  };
+  const result = validateConfigObject({ schemaVersion: 1, projectRoot: '.', behaviorBaselines: [baseline] });
+  assert.equal(result.valid, false);
+  assert.ok(result.diagnostics.some((item) => item.path.endsWith('.telemetryBudgets[0]')));
+});
+
+test('run record validator returns field diagnostics for malformed metricNames', () => {
+  const base = {
+    schemaVersion: 1, runId: 'metric-names', scenario: 'metrics', result: 'succeeded',
+    startedAt: '2026-07-14T05:00:00.000Z', durationMs: 1,
+    checks: [{ name: 'contract', result: 'pass' }], metrics: {},
+    measurement: { status: 'met', verifiedAt: '2026-07-14T05:00:00.000Z', summary: 'Verified.' },
+  };
+  for (const metricNames of [null, 1, 'input_tokens', {}]) {
+    const result = validateRunRecordObject({ ...base, measurement: { ...base.measurement, metricNames } });
+    assert.equal(result.valid, false);
+    assert.ok(result.diagnostics.some((item) => item.path === '$.measurement.metricNames'));
+  }
+});
+
+test('requires canonical calendar timestamps and a completed measurement window', () => {
+  const base = {
+    schemaVersion: 1, runId: 'canonical-time', scenario: 'time', result: 'succeeded',
+    startedAt: '2026-02-28T05:00:00.000Z', durationMs: 1,
+    checks: [{ name: 'contract', result: 'pass' }], metrics: {},
+    measurement: { status: 'met', windowEndsAt: '2026-02-28T05:02:00.000Z', verifiedAt: '2026-02-28T05:03:00.000Z', summary: 'Verified.' },
+  };
+  assert.equal(validateRunRecordObject(base).valid, true);
+  assert.equal(validateRunRecordObject({ ...base, startedAt: '2026-02-30T05:00:00.000Z' }).valid, false);
+  assert.equal(validateRunRecordObject({ ...base, startedAt: '2024-02-29T05:00:00.000Z' }).valid, true);
+  assert.equal(validateRunRecordObject({ ...base, measurement: { ...base.measurement, windowEndsAt: '2026-02-28T05:04:00.000Z' } }).valid, false);
+  assert.equal(validateRunRecordObject({ ...base, measurement: { status: 'pending', windowEndsAt: '2026-02-28T05:02:00.000Z' } }).valid, true);
+});
+
+test('portable standard counters are non-negative integers while generic metrics may be signed', () => {
+  const base = {
+    schemaVersion: 1, runId: 'counter-contract', scenario: 'metrics', result: 'succeeded',
+    startedAt: '2026-07-14T05:00:00.000Z', durationMs: 1,
+    checks: [{ name: 'contract', result: 'pass' }], metrics: { outcome_delta: -0.25, input_tokens: 2, cached_input_tokens: 1 },
+  };
+  assert.equal(validateRunRecordObject(base).valid, true);
+  assert.equal(validateRunRecordObject({ ...base, metrics: { ...base.metrics, input_tokens: -1 } }).valid, false);
+  assert.equal(validateRunRecordObject({ ...base, metrics: { ...base.metrics, cached_input_tokens: 3 } }).valid, false);
+});
+
 test('rejects successful run records without passing checks or closed outcome evidence', () => {
   const record = {
     schemaVersion: 1,
@@ -513,6 +586,16 @@ test('validate-run rejects invalid timestamps and negative durations', async () 
   assert.ok(result.diagnostics.some((item) => item.path === '$.startedAt'));
   assert.ok(result.diagnostics.some((item) => item.path === '$.durationMs'));
   assert.ok(result.diagnostics.some((item) => item.path === '$.checks'));
+
+  await writeFile(path.join(root, 'run.json'), JSON.stringify({
+    schemaVersion: 1, runId: 'run-002', scenario: 'happy-path', result: 'succeeded',
+    startedAt: '2026-07-14T05:00:00.000Z', durationMs: 1,
+    checks: [{ name: 'contract', result: 'pass' }], metrics: {},
+    measurement: { status: 'met', verifiedAt: '2026-07-14T05:00:00.000Z', summary: 'Verified.', metricNames: null },
+  }));
+  const malformedMetrics = await executeCli(['validate-run', '--file', 'run.json'], { cwd: root });
+  assert.equal(malformedMetrics.exitCode, EXIT_CODES.VALIDATION_FAILED);
+  assert.ok(malformedMetrics.diagnostics.some((item) => item.path === '$.measurement.metricNames'));
 });
 
 test('init creates a valid scaffold and never overwrites existing files', async () => {
@@ -528,6 +611,33 @@ test('init creates a valid scaffold and never overwrites existing files', async 
   const second = await initProject('skills', 'project', { cwd: root });
   assert.equal(second.exitCode, EXIT_CODES.INIT_CONFLICT);
   assert.equal(await readFile(path.join(target, 'README.md'), 'utf8'), 'owner content\n');
+});
+
+test('init rejects escaping template-directory symlinks before creating any files', async () => {
+  for (const [type, link] of [['skills', 'skills'], ['loop', 'evals'], ['docs', 'docs']]) {
+    const root = await temporaryDirectory();
+    const project = path.join(root, 'project');
+    const outside = path.join(root, 'outside');
+    await mkdir(project);
+    await mkdir(outside);
+    await symlink(outside, path.join(project, link), 'dir');
+    const result = await initProject(type, 'project', { cwd: root });
+    assert.equal(result.ok, false, type);
+    assert.equal(result.exitCode, EXIT_CODES.UNSAFE_PATH, type);
+    assert.deepEqual(await readdir(outside), [], type);
+    assert.deepEqual(await readdir(project), [link], type);
+  }
+});
+
+test('init preflights non-directory template ancestors before creating any files', async () => {
+  const root = await temporaryDirectory();
+  const project = path.join(root, 'project');
+  await mkdir(project);
+  await writeFile(path.join(project, 'skills'), 'owner file\n');
+  const result = await initProject('skills', 'project', { cwd: root });
+  assert.equal(result.exitCode, EXIT_CODES.INIT_CONFLICT);
+  assert.equal(await readFile(path.join(project, 'skills'), 'utf8'), 'owner file\n');
+  assert.deepEqual(await readdir(project), ['skills']);
 });
 
 test('CLI emits machine-readable JSON and rejects unsafe run paths', async () => {
