@@ -30,6 +30,9 @@
     "validate:self": "node bin/agent-harness.js validate --config agent-harness.config.json",
     "check": "node --test && node scripts/check-examples.js && npm run validate:self"
   },
+  "devDependencies": {
+    "ajv": "8.20.0"
+  },
   "keywords": [
     "agents",
     "evaluation",
