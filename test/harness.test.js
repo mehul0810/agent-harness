@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, open, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { execFileSync, spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { readRegularFile, FILE_LIMITS } from '../src/bounded-read.js';
 import {
   EXIT_CODES,
   executeCli,
@@ -11,6 +13,7 @@ import {
   initProject,
   planContext,
   validateProject,
+  validateRunFile,
   validateConfigObject,
   validateRunRecordObject,
 } from '../src/index.js';
@@ -33,6 +36,11 @@ async function writeFiles(root, files) {
     await mkdir(path.dirname(destination), { recursive: true });
     await writeFile(destination, content, 'utf8');
   }
+}
+
+async function createSparseFile(filePath, size) {
+  const handle = await open(filePath, 'w');
+  try { await handle.truncate(size); } finally { await handle.close(); }
 }
 
 function baseConfig(overrides = {}) {
@@ -67,6 +75,19 @@ async function projectFixture(config = baseConfig(), fileOverrides = {}) {
 
 function diagnosticCodes(result) {
   return result.diagnostics.map((item) => item.code);
+}
+
+async function runRealCli(cwd, args) {
+  const child = spawn(process.execPath, [path.resolve('bin/agent-harness.js'), ...args, '--json'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    const timeout = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('CLI exceeded test timeout')); }, 2000);
+    child.stdout.on('data', chunk => { stdout += chunk; });
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    child.on('error', reject);
+    child.on('close', code => { clearTimeout(timeout); resolve({ stdout, stderr, code }); });
+  });
 }
 
 function sha256(value) {
@@ -152,6 +173,81 @@ test('supports plan-context through the CLI', async () => {
   assert.match(formatCliResult(result), /Total: 6\/6 words; headroom 0/);
 });
 
+test('bounded readers reject FIFOs without waiting for a writer in API and CLI paths', async () => {
+  const root = await projectFixture();
+  const fifo = path.join(root, 'pipe');
+  execFileSync('mkfifo', [fifo]);
+  const started = Date.now();
+  const api = await planContext(fifo, 'main');
+  assert.equal(api.exitCode, EXIT_CODES.INVALID_INPUT);
+  assert.equal(diagnosticCodes(api)[0], 'FILE_NOT_REGULAR');
+
+  await writeFile(path.join(root, 'agent-harness.config.json'), '');
+  await rm(path.join(root, 'agent-harness.config.json'));
+  await symlink(fifo, path.join(root, 'agent-harness.config.json'));
+  const validation = await validateProject(path.join(root, 'agent-harness.config.json'));
+  assert.equal(validation.exitCode, EXIT_CODES.INVALID_INPUT);
+  assert.equal(diagnosticCodes(validation)[0], 'FILE_NOT_REGULAR');
+
+  const output = await runRealCli(root, ['plan-context', '--config', 'pipe', '--route', 'main']);
+  assert.ok(Date.now() - started < 2000);
+  assert.equal(output.code, EXIT_CODES.INVALID_INPUT);
+  assert.equal(JSON.parse(output.stderr).diagnostics[0].code, 'FILE_NOT_REGULAR');
+});
+
+test('bounded readers reject oversized config, run record, and context source with structured diagnostics', async () => {
+  const root = await projectFixture();
+  const configPath = path.join(root, 'agent-harness.config.json');
+  await writeFile(configPath, `${' '.repeat(1024 * 1024 + 1)}`);
+  for (const result of [await validateProject(configPath), await planContext(configPath, 'main')]) {
+    assert.equal(result.exitCode, EXIT_CODES.INVALID_INPUT);
+    assert.equal(diagnosticCodes(result)[0], 'FILE_TOO_LARGE');
+  }
+  const configCli = await runRealCli(root, ['validate', '--config', 'agent-harness.config.json']);
+  assert.equal(configCli.code, EXIT_CODES.INVALID_INPUT);
+  assert.equal(JSON.parse(configCli.stderr).diagnostics[0].code, 'FILE_TOO_LARGE');
+
+  const runPath = path.join(root, 'run.json');
+  await writeFile(runPath, ' '.repeat(256 * 1024 + 1));
+  const run = await executeCli(['validate-run', '--file', 'run.json'], { cwd: root });
+  assert.equal(run.exitCode, EXIT_CODES.INVALID_INPUT);
+  assert.equal(diagnosticCodes(run)[0], 'FILE_TOO_LARGE');
+  const runApi = await validateRunFile('run.json', { cwd: root });
+  assert.equal(diagnosticCodes(runApi)[0], 'FILE_TOO_LARGE');
+  const runCli = await runRealCli(root, ['validate-run', '--file', 'run.json']);
+  assert.equal(runCli.code, EXIT_CODES.INVALID_INPUT);
+  assert.equal(JSON.parse(runCli.stderr).diagnostics[0].code, 'FILE_TOO_LARGE');
+
+  const config = baseConfig({ routeBudgets: [{ name: 'main', maxWords: 10, files: ['huge.md'] }] });
+  await writeFile(configPath, JSON.stringify(config));
+  await createSparseFile(path.join(root, 'huge.md'), FILE_LIMITS.projectFile + 1);
+  const project = await validateProject(configPath);
+  assert.ok(diagnosticCodes(project).includes('FILE_TOO_LARGE'));
+  const context = await planContext(configPath, 'main');
+  assert.equal(context.exitCode, EXIT_CODES.INVALID_INPUT);
+  assert.equal(diagnosticCodes(context)[0], 'FILE_TOO_LARGE');
+  const contextCli = await runRealCli(root, ['plan-context', '--config', 'agent-harness.config.json', '--route', 'main']);
+  assert.equal(contextCli.code, EXIT_CODES.INVALID_INPUT);
+  assert.equal(JSON.parse(contextCli.stderr).diagnostics[0].code, 'FILE_TOO_LARGE');
+});
+
+test('bounded reader closes descriptors after successful and rejected reads', async (t) => {
+  const descriptorDirectory = process.platform === 'linux' ? '/proc/self/fd' : '/dev/fd';
+  let before;
+  try { before = (await readdir(descriptorDirectory)).length; }
+  catch { t.skip('process descriptor inventory is unavailable on this platform'); return; }
+  const root = await temporaryDirectory();
+  const validPath = path.join(root, 'small.txt');
+  const largePath = path.join(root, 'large.txt');
+  await writeFile(validPath, 'safe');
+  await writeFile(largePath, 'x'.repeat(FILE_LIMITS.runRecord + 1));
+  for (let index = 0; index < 25; index += 1) {
+    assert.equal((await readRegularFile(validPath, 16)).toString(), 'safe');
+    await assert.rejects(readRegularFile(largePath, FILE_LIMITS.runRecord), { code: 'FILE_TOO_LARGE' });
+  }
+  assert.equal((await readdir(descriptorDirectory)).length, before);
+});
+
 test('plan-context preserves configured route warnings', async () => {
   const config = baseConfig({
     routeBudgets: [{ name: 'main', maxWords: 7, warningPercent: 85, files: ['skills/example/SKILL.md', 'route.md'] }],
@@ -183,7 +279,7 @@ test('binds behavior evidence to exact source, scenario, run checks, outcome, an
   const root = await temporaryDirectory();
   const sourceFiles = { 'skills/example/SKILL.md': 'bounded behavior\n' };
   const scenarioFiles = { 'evals/scenarios.md': 'Scenario: bounded behavior must remain observable.\nAdditional instruction text.\n' };
-  const fixtureFiles = { 'evals/input.json': '{"mode":"safe"}\n' };
+  const fixtureFiles = { 'evals/input.bin': Buffer.alloc(1_100_000, 93) };
   const sourceSha = sourceDigest(sourceFiles);
   const scenarioSha = scenarioDigest('bounded-behavior', scenarioFiles, fixtureFiles);
   const run = {
@@ -241,10 +337,10 @@ test('binds behavior evidence to exact source, scenario, run checks, outcome, an
   assert.ok(diagnosticCodes(changedScenario).includes('BEHAVIOR_SCENARIO_STALE'));
   await writeFile(path.join(root, 'evals/scenarios.md'), scenarioFiles['evals/scenarios.md']);
 
-  await writeFile(path.join(root, 'evals/input.json'), '{"mode":"unsafe"}\n');
+  await writeFile(path.join(root, 'evals/input.bin'), Buffer.alloc(1_100_000, 94));
   const changedFixture = await validateProject(path.join(root, 'agent-harness.config.json'));
   assert.ok(diagnosticCodes(changedFixture).includes('BEHAVIOR_SCENARIO_STALE'));
-  await writeFile(path.join(root, 'evals/input.json'), fixtureFiles['evals/input.json']);
+  await writeFile(path.join(root, 'evals/input.bin'), fixtureFiles['evals/input.bin']);
 
   await writeFile(path.join(root, 'skills/example/SKILL.md'), 'changed behavior\n');
   const stale = await validateProject(path.join(root, 'agent-harness.config.json'));

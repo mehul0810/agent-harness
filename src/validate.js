@@ -1,10 +1,11 @@
 import path from 'node:path';
-import { readFile, realpath, stat } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { EXIT_CODES } from './constants.js';
 import { validateConfigObject, validateRunRecordObject } from './contracts.js';
 import { diagnostic, failureResult, HarnessError } from './errors.js';
 import { resolveCliPath, resolveProjectFile, resolveProjectRoot } from './path-safety.js';
+import { FILE_LIMITS, readRegularFile } from './bounded-read.js';
 
 export function countWords(text) {
   const trimmed = text.trim();
@@ -12,15 +13,11 @@ export function countWords(text) {
 }
 
 async function readJsonFile(filePath, label) {
-  let source;
-  try {
-    source = await readFile(filePath, 'utf8');
-  } catch {
-    throw new HarnessError(`${label} could not be read.`, { code: 'FILE_UNREADABLE', path: filePath });
-  }
+  const limit = label === 'Configuration' ? FILE_LIMITS.configuration : FILE_LIMITS.runRecord;
+  const bytes = await readRegularFile(filePath, limit, label);
 
   try {
-    return JSON.parse(source);
+    return JSON.parse(bytes.toString('utf8'));
   } catch (error) {
     throw new HarnessError(`${label} is not valid JSON: ${error.message}`, { code: 'JSON_INVALID', path: filePath });
   }
@@ -50,7 +47,7 @@ async function digestFiles(files, configuredPaths) {
   for (const configuredPath of [...configuredPaths].sort()) {
     const file = files.get(configuredPath);
     if (!file?.exists || !file.isFile) return null;
-    const bytes = await readFile(file.path);
+    const bytes = await readRegularFile(file.path, FILE_LIMITS.projectFile, 'Configured file');
     hash.update(configuredPath);
     hash.update('\0');
     hash.update(String(bytes.length));
@@ -73,7 +70,7 @@ async function digestScenario(files, scenario) {
     for (const configuredPath of [...configuredPaths].sort()) {
       const file = files.get(configuredPath);
       if (!file?.exists || !file.isFile) return null;
-      const bytes = await readFile(file.path);
+      const bytes = await readRegularFile(file.path, FILE_LIMITS.projectFile, 'Configured file');
       hash.update(configuredPath);
       hash.update('\0');
       hash.update(String(bytes.length));
@@ -103,7 +100,7 @@ async function validateBehaviorBaseline(baseline, files, diagnostics, now) {
   let runBytes;
   let run;
   try {
-    runBytes = await readFile(runFile.path);
+    runBytes = await readRegularFile(runFile.path, FILE_LIMITS.runRecord, 'Run record');
     run = JSON.parse(runBytes.toString('utf8'));
   } catch (error) {
     diagnostics.push(diagnostic('BEHAVIOR_RUN_INVALID', `Behavior evidence for ${JSON.stringify(baseline.name)} is not valid JSON: ${error.message}`, {
@@ -172,9 +169,6 @@ export async function validateProject(configPath, { now = Date.now() } = {}) {
   try {
     if (!Number.isSafeInteger(now) || now < 0) throw new HarnessError('Validation clock must be a non-negative epoch-millisecond integer.', { code: 'USAGE_ERROR' });
     const resolvedConfig = await realpath(path.resolve(configPath));
-    const configStats = await stat(resolvedConfig);
-    if (!configStats.isFile()) throw new Error('not a file');
-
     const input = await readJsonFile(resolvedConfig, 'Configuration');
     const contract = validateConfigObject(input);
     if (!contract.valid) {
@@ -202,9 +196,9 @@ export async function validateProject(configPath, { now = Date.now() } = {}) {
       const file = files.get(configuredPath);
       if (!file?.exists || !file.isFile) continue;
       try {
-        contents.set(configuredPath, await readFile(file.path, 'utf8'));
-      } catch {
-        diagnostics.push(diagnostic('FILE_UNREADABLE', 'Configured file could not be read as UTF-8 text.', { path: configuredPath }));
+        contents.set(configuredPath, (await readRegularFile(file.path, FILE_LIMITS.projectFile, 'Configured file')).toString('utf8'));
+      } catch (error) {
+        diagnostics.push(diagnostic(error.code === 'FILE_TOO_LARGE' ? 'FILE_TOO_LARGE' : error.code === 'FILE_NOT_REGULAR' ? 'FILE_NOT_REGULAR' : 'FILE_UNREADABLE', error.message, { path: configuredPath }));
       }
     }
 
@@ -321,10 +315,10 @@ export async function planContext(configPath, routeName) {
       }
       let content;
       try {
-        content = await readFile(file.path, 'utf8');
-      } catch {
+        content = (await readRegularFile(file.path, FILE_LIMITS.projectFile, 'Context route file')).toString('utf8');
+      } catch (error) {
         return failureResult(command, new HarnessError('Context route file could not be read as UTF-8 text.', {
-          code: 'FILE_UNREADABLE',
+          code: error.code === 'FILE_TOO_LARGE' ? 'FILE_TOO_LARGE' : error.code === 'FILE_NOT_REGULAR' ? 'FILE_NOT_REGULAR' : 'FILE_UNREADABLE',
           path: configuredPath,
         }));
       }
@@ -380,10 +374,6 @@ export async function validateRunFile(filePath, { cwd = process.cwd() } = {}) {
   const command = 'validate-run';
   try {
     const resolvedPath = await resolveCliPath(cwd, filePath, { mustExist: true });
-    const fileStats = await stat(resolvedPath);
-    if (!fileStats.isFile()) {
-      throw new HarnessError('Run record path is not a regular file.', { code: 'FILE_NOT_REGULAR', path: filePath });
-    }
     const input = await readJsonFile(resolvedPath, 'Run record');
     const contract = validateRunRecordObject(input);
     return {
