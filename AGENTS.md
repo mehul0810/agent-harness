@@ -19,4 +19,4 @@
 - Add focused `node:test` coverage for behavior and boundary changes; keep JSON schemas aligned with internal validators.
 - Run `npm test`, `npm run check`, and `git diff --check` locally.
 - Publish scoped validated changes directly to `main`. Create a branch or PR only when the owner explicitly requests review or protection requires it.
-- Do not publish a package or release without explicit owner approval.
+- Do not publish packages/releases without owner approval; see [contribution guidance](CONTRIBUTING.md).

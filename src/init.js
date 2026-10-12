@@ -2,6 +2,7 @@ import path from 'node:path';
 import { mkdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { EXIT_CODES } from './constants.js';
 import { diagnostic, failureResult, HarnessError } from './errors.js';
+import { COMMUNICATION_FILES } from './init-templates.js';
 import { resolveCliPath, resolveProjectFile } from './path-safety.js';
 
 const TYPES = new Set(['skills', 'loop', 'docs']);
@@ -12,6 +13,8 @@ function json(value) {
 
 function template(type) {
   const shared = {
+    ...COMMUNICATION_FILES,
+    'AGENTS.md': '# Agent Guidance\n\nSee [CONTRIBUTING.md](CONTRIBUTING.md) and the `.github` issue/pull-request templates for writing guidance.\n',
     'evals/scenarios.md': '# Happy path\n\nExpected: pass\n',
   };
 

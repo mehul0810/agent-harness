@@ -22,6 +22,8 @@
     "examples",
     "docs",
     "contracts/routing-policy.json",
+    ".github",
+    "CONTRIBUTING.md",
     "README.md",
     "LICENSE"
   ],

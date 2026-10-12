@@ -17,6 +17,7 @@ import {
   validateConfigObject,
   validateRunRecordObject,
 } from '../src/index.js';
+import { COMMUNICATION_FILES } from '../src/init-templates.js';
 
 const temporaryDirectories = [];
 
@@ -707,6 +708,60 @@ test('init creates a valid scaffold and never overwrites existing files', async 
   const second = await initProject('skills', 'project', { cwd: root });
   assert.equal(second.exitCode, EXIT_CODES.INIT_CONFLICT);
   assert.equal(await readFile(path.join(target, 'README.md'), 'utf8'), 'owner content\n');
+});
+
+test('init generates reachable communication guidance and valid scaffolds for every type', async () => {
+  for (const [relativePath, content] of Object.entries(COMMUNICATION_FILES)) {
+    assert.equal(await readFile(new URL(`../${relativePath}`, import.meta.url), 'utf8'), content, relativePath);
+  }
+
+  for (const type of ['skills', 'loop', 'docs']) {
+    const root = await temporaryDirectory();
+    const result = await initProject(type, 'project', { cwd: root });
+    assert.equal(result.ok, true, type);
+
+    const project = path.join(root, 'project');
+    const validation = await validateProject(path.join(project, 'agent-harness.config.json'));
+    assert.equal(validation.ok, true, type);
+    assert.match(await readFile(path.join(project, 'CONTRIBUTING.md'), 'utf8'), /type\(scope\): plain-language summary/u);
+    assert.match(await readFile(path.join(project, 'AGENTS.md'), 'utf8'), /CONTRIBUTING\.md/u);
+    assert.match(await readFile(path.join(project, '.github/pull_request_template.md'), 'utf8'), /## Validation/u);
+    assert.match(await readFile(path.join(project, '.github/ISSUE_TEMPLATE/work-item.md'), 'utf8'), /## Acceptance Criteria/u);
+  }
+});
+
+test('init GitHub template conflicts are preflighted without writing or overwriting files', async () => {
+  const root = await temporaryDirectory();
+  const project = path.join(root, 'project');
+  const existing = path.join(project, '.github/ISSUE_TEMPLATE/work-item.md');
+  await mkdir(path.dirname(existing), { recursive: true });
+  await writeFile(existing, 'owner issue template\n');
+
+  const result = await initProject('skills', 'project', { cwd: root });
+  assert.equal(result.exitCode, EXIT_CODES.INIT_CONFLICT);
+  assert.equal(await readFile(existing, 'utf8'), 'owner issue template\n');
+  assert.deepEqual(await readdir(project, { withFileTypes: true }).then((entries) => entries.map((entry) => entry.name)), ['.github']);
+});
+
+test('init rejects an escaping .github symlink and non-directory .github parent before writes', async () => {
+  for (const obstruction of ['symlink', 'file']) {
+    const root = await temporaryDirectory();
+    const project = path.join(root, 'project');
+    const outside = path.join(root, 'outside');
+    await mkdir(project);
+    if (obstruction === 'symlink') {
+      await mkdir(outside);
+      await symlink(outside, path.join(project, '.github'), 'dir');
+    } else {
+      await writeFile(path.join(project, '.github'), 'owner file\n');
+    }
+
+    const result = await initProject('docs', 'project', { cwd: root });
+    assert.equal(result.ok, false, obstruction);
+    assert.deepEqual(await readdir(project), ['.github'], obstruction);
+    if (obstruction === 'symlink') assert.deepEqual(await readdir(outside), []);
+    else assert.equal(await readFile(path.join(project, '.github'), 'utf8'), 'owner file\n');
+  }
 });
 
 test('init rejects escaping template-directory symlinks before creating any files', async () => {
