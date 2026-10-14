@@ -22,7 +22,7 @@ function template(type) {
     return {
       ...shared,
       'README.md': '# Agent project\n',
-      'skills/example/SKILL.md': '# Example Skill\n\n## Purpose\n\nHandle one bounded task.\n',
+      'skills/example/SKILL.md': '---\nname: example\ndescription: Use when creating a bounded example skill for this project; provides a concise purpose statement.\n---\n\n# Example Skill\n\n## Purpose\n\nHandle one bounded task.\n',
       'agent-harness.config.json': json({
         schemaVersion: 1,
         projectRoot: '.',

@@ -723,6 +723,15 @@ test('init generates reachable communication guidance and valid scaffolds for ev
     const project = path.join(root, 'project');
     const validation = await validateProject(path.join(project, 'agent-harness.config.json'));
     assert.equal(validation.ok, true, type);
+    if (type === 'skills') {
+      const skill = await readFile(path.join(project, 'skills/example/SKILL.md'), 'utf8');
+      const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/u)?.[1];
+      assert.ok(frontmatter, 'generated skill has YAML frontmatter');
+      assert.match(frontmatter, /^name: example$/mu);
+      assert.match(frontmatter, /^description: .+$/mu);
+      assert.match(frontmatter, /Use when creating a bounded example skill/u);
+      assert.doesNotMatch(frontmatter, /TODO|<[^>]+>/u);
+    }
     assert.match(await readFile(path.join(project, 'CONTRIBUTING.md'), 'utf8'), /type\(scope\): plain-language summary/u);
     assert.match(await readFile(path.join(project, 'AGENTS.md'), 'utf8'), /CONTRIBUTING\.md/u);
     assert.match(await readFile(path.join(project, '.github/pull_request_template.md'), 'utf8'), /## Validation/u);
