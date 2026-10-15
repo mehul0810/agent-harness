@@ -16,6 +16,8 @@ Scale the body to the artifact: summary, context, changes/scope, validation/evid
 
 Distinguish `Passed`, `Failed`, `Blocked` and `Not run`, identifying the command, environment and tested revision/artifact. Keep local, CI, packaged, editor/browser and production proof separate. Proposed tests are not completed validation.
 
+For owner-managed project tasks under the standing owner policy, do not make macOS VoiceOver or voice-over narration verification a completion gate unless the owner explicitly requests it. Record those checks as excluded by owner direction, never as passed; do not substitute another screen reader to recreate the waived gate. Preserve other applicable accessibility and safety checks, including keyboard/focus, semantics, labels, contrast, captions and automated checks. Do not infer assistive-technology compatibility, verified narration or WCAG conformance from this exclusion.
+
 Reviews put actionable findings first. Handoffs retain evidence, blockers and the exact next action. Release notes use audience-facing outcomes, not commit prefixes or unverified shipped claims. Avoid duplicate progress comments, private data and invented attribution.
 
 Do not rename historical titles/messages, rewrite commits, edit others' drafts or override generated titles solely for consistency. Formatting grants no posting, merge, release or deployment authority.

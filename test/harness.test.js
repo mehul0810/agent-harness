@@ -732,7 +732,12 @@ test('init generates reachable communication guidance and valid scaffolds for ev
       assert.match(frontmatter, /Use when creating a bounded example skill/u);
       assert.doesNotMatch(frontmatter, /TODO|<[^>]+>/u);
     }
-    assert.match(await readFile(path.join(project, 'CONTRIBUTING.md'), 'utf8'), /type\(scope\): plain-language summary/u);
+    const contributing = await readFile(path.join(project, 'CONTRIBUTING.md'), 'utf8');
+    assert.match(contributing, /type\(scope\): plain-language summary/u);
+    assert.match(contributing, /For owner-managed project tasks under the standing owner policy, do not make macOS VoiceOver or voice-over narration verification a completion gate unless the owner explicitly requests it/u);
+    assert.match(contributing, /Record those checks as excluded by owner direction, never as passed/u);
+    assert.match(contributing, /keyboard\/focus, semantics, labels, contrast, captions and automated checks/u);
+    assert.match(contributing, /Do not infer assistive-technology compatibility, verified narration or WCAG conformance from this exclusion/u);
     assert.match(await readFile(path.join(project, 'AGENTS.md'), 'utf8'), /CONTRIBUTING\.md/u);
     assert.match(await readFile(path.join(project, '.github/pull_request_template.md'), 'utf8'), /## Validation/u);
     assert.match(await readFile(path.join(project, '.github/ISSUE_TEMPLATE/work-item.md'), 'utf8'), /## Acceptance Criteria/u);
