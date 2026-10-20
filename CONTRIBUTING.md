@@ -24,7 +24,7 @@ Do not rename historical titles/messages, rewrite commits, edit others' drafts o
 
 ## Local Commits And Remote Delivery
 
-Use the [shared change-delivery discipline](https://github.com/mehul0810/agent-skills/blob/main/shared/references/change-delivery-discipline.md). Stricter owner, client or upstream restrictions still apply.
+Use the [shared change-delivery discipline](https://github.com/mehul0810/agent-skills/blob/29587b6450d98f87d25d171fadb586f041aea019/shared/references/change-delivery-discipline.md). Stricter owner, client or upstream restrictions still apply.
 
 Keep authorized work in small, coherent local commits after the applicable checks. A commit does not authorize a push, PR, merge, release or deployment. Choose branches according to repository and upstream requirements, independently of permission to push.
 
