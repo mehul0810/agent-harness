@@ -18,5 +18,5 @@
 - Start with `git status --short --branch`, `origin/main`, and open review exceptions.
 - Add focused `node:test` coverage for behavior and boundary changes; keep JSON schemas aligned with internal validators.
 - Run `npm test`, `npm run check`, and `git diff --check` locally.
-- Publish scoped validated changes directly to `main`. Create a branch or PR only when the owner explicitly requests review or protection requires it.
+- Keep validated changes in small local commits; push only when explicitly requested. Branch choice is separate; preserve upstream review and protection requirements.
 - Do not publish packages/releases without owner approval; see [contribution guidance](CONTRIBUTING.md).

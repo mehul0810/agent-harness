@@ -119,7 +119,7 @@ npm test
 npm run check
 ```
 
-`npm run check` runs the test suite, validates every checked-in example through the public API, checks the compatibility manifest, and validates this repository with its own CLI. Local validation is the normal gate; scoped validated repository changes publish directly to `main`, while a PR is an explicit review exception.
+`npm run check` runs tests, example and compatibility checks, and self-validation. Keep validated changes in local commits; push only when explicitly requested. This repository triggers CI on pushes and PRs. Branch choice does not authorize remote delivery.
 
 ## Bounded log evidence
 

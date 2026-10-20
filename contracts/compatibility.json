@@ -5,5 +5,5 @@
   "runRecordSchemaVersion": 1,
   "runtimeDependencies": 0,
   "consumerPinning": "exact_commit",
-  "publicationPolicy": "direct_main_after_validation"
+  "publicationPolicy": "local_commits_gated_push"
 }

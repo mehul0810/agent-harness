@@ -17,8 +17,8 @@ if (compatibility.configSchemaVersion !== 1 || compatibility.runRecordSchemaVers
 if (compatibility.runtimeDependencies !== 0 || Object.keys(packageManifest.dependencies ?? {}).length !== 0) {
   throw new Error('The harness must remain dependency-free at runtime.');
 }
-if (compatibility.publicationPolicy !== 'direct_main_after_validation') {
-  throw new Error('Compatibility must preserve direct-main publication after validation.');
+if (compatibility.publicationPolicy !== 'local_commits_gated_push') {
+  throw new Error('Compatibility must separate local commits from gated remote delivery.');
 }
 
 for (const schema of ['config.schema.json', 'run-record.schema.json', 'continuity.schema.json']) {

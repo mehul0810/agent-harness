@@ -19,7 +19,7 @@
     {
       "file": "AGENTS.md",
       "phrases": [
-        "directly to `main`",
+        "push only when explicitly requested",
         "no shell execution, network access"
       ]
     },
@@ -69,10 +69,10 @@
       ]
     },
     {
-      "name": "direct-main-local-first",
+      "name": "gated-push-local-first",
       "file": "evals/harness-contracts.md",
       "requiredPhrases": [
-        "Publication route",
+        "Delivery boundary",
         "Local-first gate"
       ]
     }

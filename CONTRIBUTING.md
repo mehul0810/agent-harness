@@ -4,7 +4,7 @@
 
 Use the [shared cross-project writing standard](https://github.com/mehul0810/agent-skills/blob/main/shared/references/github-communication-protocol.md). Explicit repository or upstream formats take precedence; preserve their required fields.
 
-Commit subjects, PR titles and issue titles default to:
+Inspect repository guidance, recent commits and upstream templates first. Use their format, including non-Conventional Commit formats. Only when no convention applies, commit subjects, PR titles and issue titles default to:
 
 ```text
 type(scope): plain-language summary
@@ -22,6 +22,14 @@ Reviews put actionable findings first. Handoffs retain evidence, blockers and th
 
 Do not rename historical titles/messages, rewrite commits, edit others' drafts or override generated titles solely for consistency. Formatting grants no posting, merge, release or deployment authority.
 
-## Validation And Publication
+## Local Commits And Remote Delivery
 
-Run the checks documented in this repository's `AGENTS.md` and testing documentation. Follow its branch and approval policy; writing conventions do not change those gates. Report unrun checks and material limitations rather than implying success.
+Use the [shared change-delivery discipline](https://github.com/mehul0810/agent-skills/blob/main/shared/references/change-delivery-discipline.md). Stricter owner, client or upstream restrictions still apply.
+
+Keep authorized work in small, coherent local commits after the applicable checks. A commit does not authorize a push, PR, merge, release or deployment. Choose branches according to repository and upstream requirements, independently of permission to push.
+
+Default to local commits; push only when the owner explicitly asks. Client work always requires an explicit push request because pushing may deploy. The only standing exception is an owner-authorized open-source plugin task after verifying that the exact destination and push trigger no CI, pipeline, deployment, publication or release effects. Unknown effects mean hold the push and ask; a public repository or disabled-looking workflow is not sufficient evidence. Never disable automation or add skip directives to manufacture eligibility.
+
+Run the checks documented in this repository's `AGENTS.md` and testing documentation. Report passed, failed, blocked and unrun checks separately. A valid scaffold or phrase inventory is not evidence of agent execution, native behavior, appearance or production acceptance.
+
+Scale evidence to the task and stage: exploration can record alternatives and proof gaps; delivery requires the applicable platform checks and observable outcomes. WordPress, static sites, macOS apps and games share engineering principles, not interchangeable runtime proof. Keep lessons scoped to the platform, task and tested conditions; do not promote a local workaround into a universal rule.

@@ -1,4 +1,4 @@
-<!-- Title: type(scope): plain-language summary. Preserve explicit repo conventions. -->
+<!-- Title: preserve repository/upstream conventions; otherwise type(scope): plain-language summary. -->
 <!-- Replace prompts with facts; explain material non-applicability. -->
 
 ## Summary
@@ -22,6 +22,7 @@ Passed / Failed / Blocked / Not run: command, result, environment, tested revisi
 
 Tests added or existing coverage; screenshots for visible changes or the exact proof gap.
 Keep local, CI, packaged, editor/browser and production checks distinct.
+State the platform and exploration/delivery stage, then observable behavior and appearance results; phrase checks alone are not product proof.
 
 ## Risks And Follow-Up
 
@@ -29,6 +30,7 @@ Risk:
 Rollback plan:
 Compatibility/migration and release impact:
 Owner decisions:
+Local commits and remote delivery authorization/effects:
 Next action:
 
 Delegated chat/worktree reference when applicable.

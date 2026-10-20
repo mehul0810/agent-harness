@@ -3,7 +3,7 @@ name: Work Item
 about: Report a bug or propose a scoped improvement
 ---
 
-<!-- Title: type(scope): observed problem or requested outcome. Preserve explicit repo conventions. -->
+<!-- Title: preserve repository/upstream conventions; otherwise type(scope): observed problem or requested outcome. -->
 <!-- Do not include secrets or private customer data. Use the private security process for sensitive reports. -->
 
 ## Summary
@@ -17,7 +17,7 @@ For proposals: supporting evidence and assumptions. Mark unknowns; proposed chec
 
 ## Acceptance Criteria
 
-Observable outcomes that would resolve this work item.
+Observable outcomes that would resolve this work item, with the platform, exploration/delivery stage and applicable proof.
 
 ## Scope And Constraints
 
