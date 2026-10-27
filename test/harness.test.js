@@ -425,6 +425,21 @@ test('reports a skill budget exceeded by one word', async () => {
   assert.deepEqual({ actualWords: budget.actualWords, maxWords: budget.maxWords }, { actualWords: 4, maxWords: 3 });
 });
 
+test('ignores inherited override names while honoring explicit overrides', async () => {
+  for (const overrides of [{}, { constructor: 4 }]) {
+    const config = baseConfig({
+      requiredFiles: [], requiredPhrases: [], routeBudgets: [], scenarios: [],
+      skillBudgets: { defaultMaxWords: 3, files: ['constructor'], overrides },
+    });
+    const root = await projectFixture(config, { constructor: 'one two three four' });
+    const result = await validateProject(path.join(root, 'agent-harness.config.json'));
+    assert.equal(result.ok, Object.hasOwn(overrides, 'constructor'), JSON.stringify(result.diagnostics));
+    if (!Object.hasOwn(overrides, 'constructor')) {
+      assert.ok(diagnosticCodes(result).includes('SKILL_BUDGET_EXCEEDED'));
+    }
+  }
+});
+
 test('applies skill budget overrides', async () => {
   const config = baseConfig({
     skillBudgets: {

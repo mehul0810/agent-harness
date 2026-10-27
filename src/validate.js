@@ -145,7 +145,7 @@ async function validateBehaviorBaseline(baseline, files, diagnostics, now) {
     if (ageMs < 0 || ageMs > baseline.maxAgeDays * 86400000) diagnostics.push(diagnostic('BEHAVIOR_EVIDENCE_EXPIRED', `Behavior run for ${JSON.stringify(baseline.name)} is outside its ${baseline.maxAgeDays}-day freshness window.`, { path: baseline.evidence.runRecord, baseline: baseline.name }));
   }
   for (const budget of baseline.telemetryBudgets ?? []) {
-    const value = run.metrics[budget.metric];
+    const value = Object.hasOwn(run.metrics, budget.metric) ? run.metrics[budget.metric] : undefined;
     if (value === undefined) {
       if (budget.required === true) diagnostics.push(diagnostic('BEHAVIOR_TELEMETRY_MISSING', `Behavior run for ${JSON.stringify(baseline.name)} is missing required metric ${JSON.stringify(budget.metric)}.`, { path: baseline.evidence.runRecord, baseline: baseline.name }));
       continue;
@@ -217,7 +217,8 @@ export async function validateProject(configPath, { now = Date.now() } = {}) {
         const content = contents.get(file);
         if (content === undefined) continue;
         const actualWords = countWords(content);
-        const maxWords = config.skillBudgets.overrides[file] ?? config.skillBudgets.defaultMaxWords;
+        const maxWords = Object.hasOwn(config.skillBudgets.overrides, file)
+          ? config.skillBudgets.overrides[file] : config.skillBudgets.defaultMaxWords;
         if (actualWords > maxWords) {
           diagnostics.push(diagnostic('SKILL_BUDGET_EXCEEDED', `Skill uses ${actualWords} words; limit is ${maxWords}.`, {
             path: file,

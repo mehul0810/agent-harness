@@ -62,6 +62,8 @@ test('baseline rejection branches stay diagnostic and source-bound', async (t) =
     ['lineage incomplete', ({ run }) => { delete run.lineage.artifactPointer; }, 'BEHAVIOR_LINEAGE_INVALID'],
     ['measurement pending', ({ run }) => { run.measurement = { status: 'pending', windowEndsAt: '2026-10-07T00:02:00.000Z' }; }, 'BEHAVIOR_MEASUREMENT_UNVERIFIED'],
     ['required metric absent', ({ run, baseline }) => { delete run.metrics.input_tokens; baseline.telemetryBudgets[0].required = true; }, 'BEHAVIOR_TELEMETRY_MISSING'],
+    ['inherited metric is absent', ({ run, baseline }) => { baseline.telemetryBudgets[0] = { metric: 'constructor', required: true, max: 100 }; }, 'BEHAVIOR_TELEMETRY_MISSING'],
+    ['explicit metric with inherited name exceeds budget', ({ run, baseline }) => { run.metrics.constructor = 101; baseline.telemetryBudgets[0] = { metric: 'constructor', required: true, max: 100 }; }, 'BEHAVIOR_TELEMETRY_EXCEEDED'],
     ['absolute limit exceeded', ({ run, baseline }) => { run.metrics.input_tokens = 101; baseline.telemetryBudgets[0].max = 100; }, 'BEHAVIOR_TELEMETRY_EXCEEDED'],
     ['regression limit exceeded', ({ run, baseline }) => { run.metrics.input_tokens = 111; baseline.telemetryBudgets[0] = { metric: 'input_tokens', baseline: 100, maxRegressionPercent: 10 }; }, 'BEHAVIOR_TELEMETRY_EXCEEDED'],
     ['stale evidence', ({ run, baseline }) => { run.startedAt = '2026-10-01T00:00:00.000Z'; baseline.maxAgeDays = 2; }, 'BEHAVIOR_EVIDENCE_EXPIRED'],
@@ -75,4 +77,15 @@ test('baseline rejection branches stay diagnostic and source-bound', async (t) =
       } finally { await fixture.close(); }
     });
   }
+});
+
+test('accepts an explicitly recorded metric with an inherited name', async () => {
+  const fixture = await baselineFixture(({ run, baseline }) => {
+    run.metrics.constructor = 50;
+    baseline.telemetryBudgets[0] = { metric: 'constructor', required: true, max: 100 };
+  });
+  try {
+    const result = await validateProject(path.join(fixture.root, 'agent-harness.config.json'), { now });
+    assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
+  } finally { await fixture.close(); }
 });
