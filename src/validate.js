@@ -7,6 +7,8 @@ import { diagnostic, failureResult, HarnessError } from './errors.js';
 import { resolveCliPath, resolveProjectFile, resolveProjectRoot } from './path-safety.js';
 import { FILE_LIMITS, readRegularFile } from './bounded-read.js';
 
+export const PROJECT_CONTENT_TOTAL_LIMIT = 32 * 1024 * 1024;
+
 export function countWords(text) {
   const trimmed = text.trim();
   return trimmed === '' ? 0 : trimmed.split(/\s+/u).length;
@@ -42,12 +44,12 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
-async function digestFiles(files, configuredPaths) {
+async function digestFiles(files, configuredPaths, contentBytes) {
   const hash = createHash('sha256');
   for (const configuredPath of [...configuredPaths].sort()) {
     const file = files.get(configuredPath);
     if (!file?.exists || !file.isFile) return null;
-    const bytes = await readRegularFile(file.path, FILE_LIMITS.projectFile, 'Configured file');
+    const bytes = contentBytes.get(file.path) ?? await readRegularFile(file.path, FILE_LIMITS.projectFile, 'Configured file');
     hash.update(configuredPath);
     hash.update('\0');
     hash.update(String(bytes.length));
@@ -58,7 +60,7 @@ async function digestFiles(files, configuredPaths) {
   return hash.digest('hex');
 }
 
-async function digestScenario(files, scenario) {
+async function digestScenario(files, scenario, contentBytes) {
   const hash = createHash('sha256');
   hash.update(scenario.sha256Scope);
   hash.update('\0');
@@ -70,7 +72,7 @@ async function digestScenario(files, scenario) {
     for (const configuredPath of [...configuredPaths].sort()) {
       const file = files.get(configuredPath);
       if (!file?.exists || !file.isFile) return null;
-      const bytes = await readRegularFile(file.path, FILE_LIMITS.projectFile, 'Configured file');
+      const bytes = contentBytes.get(file.path) ?? await readRegularFile(file.path, FILE_LIMITS.projectFile, 'Configured file');
       hash.update(configuredPath);
       hash.update('\0');
       hash.update(String(bytes.length));
@@ -82,9 +84,9 @@ async function digestScenario(files, scenario) {
   return hash.digest('hex');
 }
 
-async function validateBehaviorBaseline(baseline, files, diagnostics, now) {
-  const sourceDigest = await digestFiles(files, baseline.sourceFiles);
-  const scenarioDigest = await digestScenario(files, baseline.scenario);
+async function validateBehaviorBaseline(baseline, files, diagnostics, now, contentBytes) {
+  const sourceDigest = await digestFiles(files, baseline.sourceFiles, contentBytes);
+  const scenarioDigest = await digestScenario(files, baseline.scenario, contentBytes);
   if (sourceDigest !== null && sourceDigest !== baseline.sourceSha256) {
     diagnostics.push(diagnostic('BEHAVIOR_SOURCE_STALE', `Behavior baseline ${JSON.stringify(baseline.name)} no longer matches its source files.`, { baseline: baseline.name }));
   }
@@ -192,11 +194,27 @@ export async function validateProject(configPath, { now = Date.now() } = {}) {
     }
 
     const contents = new Map();
+    const contentByCanonicalPath = new Map();
+    const contentBytes = new Map();
+    let retainedBytes = 0;
     for (const configuredPath of contentReferences(config)) {
       const file = files.get(configuredPath);
       if (!file?.exists || !file.isFile) continue;
+      if (contentByCanonicalPath.has(file.path)) {
+        contents.set(configuredPath, contentByCanonicalPath.get(file.path));
+        continue;
+      }
       try {
-        contents.set(configuredPath, (await readRegularFile(file.path, FILE_LIMITS.projectFile, 'Configured file')).toString('utf8'));
+        const bytes = await readRegularFile(file.path, FILE_LIMITS.projectFile, 'Configured file');
+        if (bytes.length > PROJECT_CONTENT_TOTAL_LIMIT - retainedBytes) {
+          diagnostics.push(diagnostic('PROJECT_CONTENT_TOTAL_TOO_LARGE', `Configured project content exceeds the ${PROJECT_CONTENT_TOTAL_LIMIT}-byte aggregate limit.`, { path: configuredPath }));
+          continue;
+        }
+        const content = bytes.toString('utf8');
+        retainedBytes += bytes.length;
+        contentByCanonicalPath.set(file.path, content);
+        contentBytes.set(file.path, bytes);
+        contents.set(configuredPath, content);
       } catch (error) {
         diagnostics.push(diagnostic(error.code === 'FILE_TOO_LARGE' ? 'FILE_TOO_LARGE' : error.code === 'FILE_NOT_REGULAR' ? 'FILE_NOT_REGULAR' : 'FILE_UNREADABLE', error.message, { path: configuredPath }));
       }
@@ -263,7 +281,7 @@ export async function validateProject(configPath, { now = Date.now() } = {}) {
     }
 
     for (const baseline of config.behaviorBaselines) {
-      await validateBehaviorBaseline(baseline, files, diagnostics, now);
+      await validateBehaviorBaseline(baseline, files, diagnostics, now, contentBytes);
     }
 
     return {

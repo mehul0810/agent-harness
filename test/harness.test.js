@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { readRegularFile, FILE_LIMITS } from '../src/bounded-read.js';
+import { PROJECT_CONTENT_TOTAL_LIMIT } from '../src/validate.js';
 import {
   EXIT_CODES,
   executeCli,
@@ -138,6 +139,46 @@ test('validates a project at exact skill and route word-budget boundaries', asyn
   assert.equal(result.ok, true);
   assert.equal(result.exitCode, EXIT_CODES.OK);
   assert.deepEqual(result.summary, { projectRoot: await realpath(root), filesChecked: 4, scenariosChecked: 1, behaviorBaselinesChecked: 0 });
+});
+
+test('reuses canonical content for aliases and preserves alias-specific phrase diagnostics', async () => {
+  const config = baseConfig({
+    requiredFiles: [],
+    requiredPhrases: [
+      { file: 'README.md', phrases: ['Required phrase'] },
+      { file: 'alias.md', phrases: ['Missing through alias'] },
+    ],
+    skillBudgets: undefined,
+    routeBudgets: [],
+    scenarios: [],
+  });
+  delete config.skillBudgets;
+  const root = await projectFixture(config);
+  await symlink('README.md', path.join(root, 'alias.md'));
+  const result = await validateProject(path.join(root, 'agent-harness.config.json'));
+
+  assert.deepEqual(result.diagnostics.filter((item) => item.code === 'PHRASE_MISSING').map((item) => item.path), ['alias.md']);
+});
+
+test('bounds aggregate content at the exact byte limit and diagnoses the first file over it', async () => {
+  const half = PROJECT_CONTENT_TOTAL_LIMIT / 2;
+  const config = baseConfig({
+    requiredFiles: [], requiredPhrases: [], skillBudgets: { defaultMaxWords: 1, files: ['a.bin', 'b.bin'], overrides: {} },
+    routeBudgets: [], scenarios: [],
+  });
+  const root = await projectFixture(config);
+  for (const name of ['a.bin', 'b.bin']) await createSparseFile(path.join(root, name), half);
+
+  const boundary = await validateProject(path.join(root, 'agent-harness.config.json'));
+  assert.equal(boundary.diagnostics.some((item) => item.code === 'PROJECT_CONTENT_TOTAL_TOO_LARGE'), false);
+
+  config.skillBudgets.files.push('c.bin');
+  await writeFile(path.join(root, 'agent-harness.config.json'), `${JSON.stringify(config)}\n`, 'utf8');
+  await createSparseFile(path.join(root, 'c.bin'), 1);
+  const overLimit = await validateProject(path.join(root, 'agent-harness.config.json'));
+  const aggregate = overLimit.diagnostics.find((item) => item.code === 'PROJECT_CONTENT_TOTAL_TOO_LARGE');
+  assert.equal(aggregate.path, 'c.bin');
+  assert.equal(overLimit.exitCode, EXIT_CODES.VALIDATION_FAILED);
 });
 
 test('plans a deterministic minimum context bundle for a named route', async () => {
