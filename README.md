@@ -119,7 +119,7 @@ npm test
 npm run check
 ```
 
-`npm run check` runs tests, example and compatibility checks, and self-validation. Keep validated changes in local commits; push only when explicitly requested. This repository triggers CI on pushes and PRs. Branch choice does not authorize remote delivery.
+`npm run check` runs tests, compatibility checks and self-validation. Standing owner policy permits validated direct-to-main pushes in owner-managed `agent-*` repositories after checking protections and downstream effects. Existing CI may run; this grants no release/deployment authority.
 
 ## Bounded log evidence
 

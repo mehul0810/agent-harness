@@ -19,7 +19,7 @@
     {
       "file": "AGENTS.md",
       "phrases": [
-        "push only when explicitly requested",
+        "standing policy authorizes scoped, validated direct pushes to `main`",
         "no shell execution, network access"
       ]
     },

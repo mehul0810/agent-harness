@@ -18,5 +18,5 @@
 - Start with `git status --short --branch`, `origin/main`, and open review exceptions.
 - Add focused `node:test` coverage for behavior and boundary changes; keep JSON schemas aligned with internal validators.
 - Run `npm test`, `npm run check`, and `git diff --check` locally.
-- Keep validated changes in small local commits; push only when explicitly requested. Branch choice is separate; preserve upstream review and protection requirements.
+- Keep commits scoped. The standing policy authorizes scoped, validated direct pushes to `main` for owner-managed `agent-*` repositories. Verify protections and effects; preserve checks; never bypass protection. No package/release, deployment, destructive action, private-data transfer or unrelated client push.
 - Do not publish packages/releases without owner approval; see [contribution guidance](CONTRIBUTING.md).
