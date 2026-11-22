@@ -141,6 +141,29 @@ test('validates a project at exact skill and route word-budget boundaries', asyn
   assert.deepEqual(result.summary, { projectRoot: await realpath(root), filesChecked: 4, scenariosChecked: 1, behaviorBaselinesChecked: 0 });
 });
 
+test('charges shared budget files per entry and recounts after an edit', async () => {
+  const root = await projectFixture(baseConfig({
+    skillBudgets: { defaultMaxWords: 1, files: ['route.md', 'alias.md'], overrides: { 'alias.md': 2 } },
+    routeBudgets: [
+      { name: 'both', maxWords: 3, files: ['alias.md', 'route.md'] },
+      { name: 'single', maxWords: 2, warningPercent: 100, files: ['route.md'] },
+    ],
+  }), { 'route.md': 'one\u2003two\n' });
+  await symlink('route.md', path.join(root, 'alias.md'));
+  const configPath = path.join(root, 'agent-harness.config.json');
+  const first = await validateProject(configPath);
+  assert.deepEqual(first.diagnostics.map(({ code, path, route, actualWords }) => [code, path, route, actualWords]), [
+    ['SKILL_BUDGET_EXCEEDED', 'route.md', undefined, 2],
+    ['ROUTE_BUDGET_EXCEEDED', undefined, 'both', 4],
+  ]);
+  assert.deepEqual(first.warnings.map(({ route, actualWords }) => [route, actualWords]), [['single', 2]]);
+
+  await writeFile(path.join(root, 'route.md'), '  \n');
+  const next = await validateProject(configPath);
+  assert.equal(next.ok, true);
+  assert.deepEqual(next.warnings, []);
+});
+
 test('reuses canonical content for aliases and preserves alias-specific phrase diagnostics', async () => {
   const config = baseConfig({
     requiredFiles: [],

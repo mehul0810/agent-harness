@@ -14,6 +14,10 @@ export function countWords(text) {
   return trimmed === '' ? 0 : trimmed.split(/\s+/u).length;
 }
 
+function snapshotWords(snapshot) {
+  return snapshot.words ??= countWords(snapshot.text);
+}
+
 async function readJsonFile(filePath, label) {
   const limit = label === 'Configuration' ? FILE_LIMITS.configuration : FILE_LIMITS.runRecord;
   const bytes = await readRegularFile(filePath, limit, label);
@@ -210,7 +214,7 @@ export async function validateProject(configPath, { now = Date.now() } = {}) {
           diagnostics.push(diagnostic('PROJECT_CONTENT_TOTAL_TOO_LARGE', `Configured project content exceeds the ${PROJECT_CONTENT_TOTAL_LIMIT}-byte aggregate limit.`, { path: configuredPath }));
           continue;
         }
-        const content = bytes.toString('utf8');
+        const content = { text: bytes.toString('utf8') };
         retainedBytes += bytes.length;
         contentByCanonicalPath.set(file.path, content);
         contentBytes.set(file.path, bytes);
@@ -224,7 +228,7 @@ export async function validateProject(configPath, { now = Date.now() } = {}) {
       const content = contents.get(rule.file);
       if (content === undefined) continue;
       for (const phrase of rule.phrases) {
-        if (!content.includes(phrase)) {
+        if (!content.text.includes(phrase)) {
           diagnostics.push(diagnostic('PHRASE_MISSING', `Missing required phrase: ${JSON.stringify(phrase)}.`, { path: rule.file }));
         }
       }
@@ -234,7 +238,7 @@ export async function validateProject(configPath, { now = Date.now() } = {}) {
       for (const file of config.skillBudgets.files) {
         const content = contents.get(file);
         if (content === undefined) continue;
-        const actualWords = countWords(content);
+        const actualWords = snapshotWords(content);
         const maxWords = Object.hasOwn(config.skillBudgets.overrides, file)
           ? config.skillBudgets.overrides[file] : config.skillBudgets.defaultMaxWords;
         if (actualWords > maxWords) {
@@ -249,7 +253,7 @@ export async function validateProject(configPath, { now = Date.now() } = {}) {
 
     for (const route of config.routeBudgets) {
       if (route.files.some((file) => !contents.has(file))) continue;
-      const actualWords = route.files.reduce((total, file) => total + countWords(contents.get(file)), 0);
+      const actualWords = route.files.reduce((total, file) => total + snapshotWords(contents.get(file)), 0);
       if (actualWords > route.maxWords) {
         diagnostics.push(diagnostic('ROUTE_BUDGET_EXCEEDED', `Route ${JSON.stringify(route.name)} uses ${actualWords} words; limit is ${route.maxWords}.`, {
           route: route.name,
@@ -271,7 +275,7 @@ export async function validateProject(configPath, { now = Date.now() } = {}) {
       const content = contents.get(scenario.file);
       if (content === undefined) continue;
       for (const phrase of scenario.requiredPhrases) {
-        if (!content.includes(phrase)) {
+        if (!content.text.includes(phrase)) {
           diagnostics.push(diagnostic('SCENARIO_PHRASE_MISSING', `Scenario ${JSON.stringify(scenario.name)} is missing phrase ${JSON.stringify(phrase)}.`, {
             path: scenario.file,
             scenario: scenario.name,

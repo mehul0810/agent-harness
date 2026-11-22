@@ -115,11 +115,10 @@ The ecosystem boundary is deliberate: this package validates deterministic contr
 ## Development
 
 ```sh
-npm test
 npm run check
 ```
 
-`npm run check` runs tests, compatibility checks and self-validation. Standing owner policy permits validated direct-to-main pushes in owner-managed `agent-*` repositories after checking protections and downstream effects. Existing CI may run; this grants no release/deployment authority.
+This includes unit tests, examples, compatibility and self-validation; `npm test` is unit-only. Standing owner policy permits validated direct-to-main pushes in owner-managed `agent-*` repositories after checking protections and downstream effects. Existing CI may run; this grants no release/deployment authority.
 
 ## Bounded log evidence
 
